@@ -25,13 +25,19 @@ flowchart TD
     C --> D{LLM Output}
     D -->|Final Response| E[Produce Final Result]
     D -->|Tool Call| F[Execute Tool]
-    F --> G[Write Raw Trajectory to External Log]
-    G --> H[Distill Observations and Update Plan]
-    H --> I{Context Too Long?}
-    I -->|No| B
-    I -->|Yes| J[Compress Old History to Summary Memory]
-    J --> B
-    E --> K[Return User-Readable Summary]
+    F --> G{Tool Error?}
+    G -->|Retryable| F
+    G -->|Non-retryable| ABORT[Abort with Error]
+    G -->|Success| H[Write Raw Trajectory to External Log]
+    H --> I[Distill Observations and Update Plan]
+    I --> J{Stop Condition?}
+    J -->|max_steps / max_budget / max_failures / goal_reached| E
+    J -->|No| K[Write Turn Snapshot]
+    K --> L{Context Too Long?}
+    L -->|No| B
+    L -->|Yes| M[Compress Old History to Summary Memory]
+    M --> B
+    E --> N[Return User-Readable Summary]
 ```
 
 ## Minimal Production Guards
@@ -48,3 +54,7 @@ To keep the loop stable, always include:
 
 ## Linked Docs
 - `harness-3-step-plan.md`: phased build plan with scope, deliverables, and acceptance criteria.
+- `step1-execution-log.md`: Step 1 implementation baseline and verification notes.
+- `step2-reliability-layer.md`: Step 2 reliability decisions, guardrails, and verification notes.
+- `uv-local-setup.md`: local Python/venv setup and run commands with `uv`.
+- `deepseek-entrypoint.md`: DeepSeek API runtime entrypoint and API-key flow.

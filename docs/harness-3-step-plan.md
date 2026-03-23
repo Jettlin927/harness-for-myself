@@ -108,3 +108,4 @@
 
 ## 进展文档
 - `step1-execution-log.md`: Step 1 implementation and verification baseline.
+- `step2-reliability-layer.md`: Step 2 reliability layer — completed.
