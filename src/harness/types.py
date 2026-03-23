@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal
 
-
 ActionType = Literal["tool_call", "final_response"]
 
 
@@ -21,6 +20,9 @@ class ToolExecutionResult:
     ok: bool
     output: Any
     error: str | None = None
+    retryable: bool = False
+    blocked: bool = False
+    attempts: int = 1
 
 
 @dataclass
@@ -40,3 +42,4 @@ class RunResult:
     turns: List[TurnRecord]
     stop_reason: str
     log_path: str
+    snapshot_path: str | None = None
