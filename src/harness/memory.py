@@ -10,7 +10,9 @@ class MemoryManager:
         self.max_history_turns = max_history_turns
         self.summary: str = ""
 
-    def build_working_memory(self, goal: str, context: Dict[str, Any], turns: List[TurnRecord]) -> Dict[str, Any]:
+    def build_working_memory(
+        self, goal: str, context: Dict[str, Any], turns: List[TurnRecord]
+    ) -> Dict[str, Any]:
         recent_turns = turns[-self.max_history_turns :]
         history = [
             {
@@ -32,13 +34,37 @@ class MemoryManager:
         if len(turns) <= max_total_turns:
             return False
 
-        old_turns = turns[:-self.max_history_turns]
+        old_turns = turns[: -self.max_history_turns]
         if not old_turns:
             return False
 
-        brief_lines = [
-            f"turn {t.turn}: {t.observation}"
-            for t in old_turns[-4:]
-        ]
-        self.summary = " | ".join(brief_lines)
+        constraints = self._extract_tagged_observations(old_turns, "constraint:")
+        open_items = self._extract_tagged_observations(old_turns, "todo:")
+        evidence = self._extract_tagged_observations(old_turns, "evidence:")
+        brief_lines = [f"turn {t.turn}: {t.observation}" for t in old_turns[-4:]]
+
+        summary_parts = []
+        if constraints:
+            summary_parts.append(f"Constraints: {'; '.join(constraints)}")
+        if open_items:
+            summary_parts.append(f"Open items: {'; '.join(open_items)}")
+        if evidence:
+            summary_parts.append(f"Evidence: {'; '.join(evidence)}")
+        if brief_lines:
+            summary_parts.append(f"Recent compressed history: {' | '.join(brief_lines)}")
+
+        self.summary = " || ".join(summary_parts)
         return True
+
+    @staticmethod
+    def _extract_tagged_observations(turns: List[TurnRecord], prefix: str) -> List[str]:
+        seen: set[str] = set()
+        values: List[str] = []
+        for turn in turns:
+            observation = turn.observation.strip()
+            if observation.lower().startswith(prefix):
+                value = observation[len(prefix) :].strip()
+                if value and value not in seen:
+                    seen.add(value)
+                    values.append(value)
+        return values
