@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -11,6 +12,21 @@ try:
     import anthropic
 except ImportError:
     anthropic = None  # type: ignore[assignment]
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """Return True if the exception is a transient error worth retrying."""
+    cls_name = type(exc).__name__
+    # Network / timeout errors are always retryable
+    if cls_name in ("APIConnectionError", "APITimeoutError"):
+        return True
+    # Rate limit (429) is retryable
+    if cls_name == "RateLimitError":
+        return True
+    # Server errors (5xx) are retryable; client errors (4xx except 429) are not
+    if cls_name == "APIStatusError" and hasattr(exc, "status_code"):
+        return exc.status_code >= 500  # type: ignore[union-attr]
+    return False
 
 
 class AnthropicLLM(BaseLLM):
@@ -52,10 +68,23 @@ class AnthropicLLM(BaseLLM):
             kwargs["tools"] = self.tool_schemas
 
         if self.on_token:
-            return self._generate_streaming(kwargs)
+            return self._call_with_retry(self._generate_streaming, kwargs)
 
-        response = self._client.messages.create(**kwargs)
+        response = self._call_with_retry(self._client.messages.create, **kwargs)
         return self._parse_response(response)
+
+    @staticmethod
+    def _call_with_retry(fn: Any, *args: Any, **kwargs: Any) -> Any:
+        """Call *fn* with retry on transient errors (max 2 retries, exponential backoff)."""
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                return fn(*args, **kwargs)
+            except Exception as exc:
+                if _is_retryable(exc) and attempt < max_retries:
+                    time.sleep(2**attempt)  # 1s, 2s
+                    continue
+                raise RuntimeError(f"LLM API call failed: {exc}") from exc
 
     def _generate_streaming(
         self,

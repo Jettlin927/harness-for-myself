@@ -616,6 +616,60 @@ class TestTurnNumberInjection(unittest.TestCase):
         )
 
 
+class TestNetworkErrorRetry(unittest.TestCase):
+    """Test retry logic for transient API errors."""
+
+    @patch("src.harness.anthropic_llm.time")
+    @patch("src.harness.anthropic_llm.anthropic")
+    def test_network_error_retries_and_succeeds(
+        self,
+        mock_anthropic: MagicMock,
+        mock_time: MagicMock,
+    ) -> None:
+        """First call raises a connection error, second call succeeds."""
+        mock_client = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_client
+
+        # Simulate APIConnectionError — use a class with matching __name__
+        conn_error = type("APIConnectionError", (Exception,), {})("connection lost")
+        mock_client.messages.create.side_effect = [
+            conn_error,
+            FakeResponse(content=[FakeTextBlock(text="recovered")]),
+        ]
+
+        llm = AnthropicLLM(api_key="test-key")
+        result = llm.generate({"goal": "test", "history": []})
+
+        self.assertEqual(result["type"], "final_response")
+        self.assertEqual(result["content"], "recovered")
+        self.assertEqual(mock_client.messages.create.call_count, 2)
+        mock_time.sleep.assert_called_once_with(1)  # 2**0 = 1
+
+    @patch("src.harness.anthropic_llm.time")
+    @patch("src.harness.anthropic_llm.anthropic")
+    def test_non_retryable_error_raises_immediately(
+        self,
+        mock_anthropic: MagicMock,
+        mock_time: MagicMock,
+    ) -> None:
+        """A 401 error should not be retried."""
+        mock_client = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_client
+
+        auth_error = type("APIStatusError", (Exception,), {"status_code": 401})(
+            "unauthorized"
+        )
+        mock_client.messages.create.side_effect = auth_error
+
+        llm = AnthropicLLM(api_key="test-key")
+        with self.assertRaises(RuntimeError) as ctx:
+            llm.generate({"goal": "test", "history": []})
+
+        self.assertIn("unauthorized", str(ctx.exception))
+        self.assertEqual(mock_client.messages.create.call_count, 1)
+        mock_time.sleep.assert_not_called()
+
+
 class TestAnthropicLLMImportError(unittest.TestCase):
     """Test that missing anthropic package raises ImportError."""
 

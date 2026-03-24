@@ -193,5 +193,55 @@ class DeepSeekLLMTests(unittest.TestCase):
         self.assertNotIn("echo", system_content)
 
 
+class TestDeepSeekRetry(unittest.TestCase):
+    """Test retry logic for transient transport errors."""
+
+    @patch("src.harness.llm.time")
+    def test_transient_error_retries(self, mock_time: unittest.mock.MagicMock) -> None:
+        """Transport fails once with 500, then succeeds on retry."""
+        call_count = 0
+
+        def flaky_transport(
+            payload: dict[str, object], api_key: str, base_url: str
+        ) -> dict[str, object]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("DeepSeek API returned HTTP 500: internal error")
+            return {
+                "choices": [
+                    {"message": {"content": '{"type":"final_response","content":"ok"}'}}
+                ]
+            }
+
+        llm = DeepSeekLLM(api_key="secret", transport=flaky_transport)
+        result = llm.generate(
+            {"goal": "test", "context": {}, "summary_memory": "", "history": []}
+        )
+
+        self.assertEqual(result["type"], "final_response")
+        self.assertEqual(result["content"], "ok")
+        self.assertEqual(call_count, 2)
+        mock_time.sleep.assert_called_once_with(1)
+
+    @patch("src.harness.llm.time")
+    def test_permanent_error_raises(self, mock_time: unittest.mock.MagicMock) -> None:
+        """A 400 error should not be retried."""
+
+        def bad_transport(
+            payload: dict[str, object], api_key: str, base_url: str
+        ) -> dict[str, object]:
+            raise RuntimeError("DeepSeek API returned HTTP 400: bad request")
+
+        llm = DeepSeekLLM(api_key="secret", transport=bad_transport)
+        with self.assertRaises(RuntimeError) as ctx:
+            llm.generate(
+                {"goal": "test", "context": {}, "summary_memory": "", "history": []}
+            )
+
+        self.assertIn("HTTP 400", str(ctx.exception))
+        mock_time.sleep.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

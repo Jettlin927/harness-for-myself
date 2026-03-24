@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import time
 from getpass import getpass
 from pathlib import Path
 from typing import Any, Callable, Dict, List
@@ -213,8 +215,31 @@ class DeepSeekLLM(BaseLLM):
             "messages": self._build_messages(working_memory),
             "temperature": 0.1,
         }
-        response = self.transport(payload, api_key, self.base_url)
-        return self._parse_response(response)
+
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                response = self.transport(payload, api_key, self.base_url)
+                return self._parse_response(response)
+            except RuntimeError as exc:
+                msg = str(exc)
+                if self._is_retryable_error(msg) and attempt < max_retries:
+                    time.sleep(2**attempt)  # 1s, 2s
+                    continue
+                raise
+
+    @staticmethod
+    def _is_retryable_error(error_msg: str) -> bool:
+        """Return True if the error message indicates a transient failure."""
+        # Match "HTTP 429" or "HTTP 5xx"
+        match = re.search(r"HTTP (\d{3})", error_msg)
+        if match:
+            code = int(match.group(1))
+            return code == 429 or code >= 500
+        # Network-level failures (URLError) are retryable
+        if "request failed" in error_msg.lower():
+            return True
+        return False
 
     def _resolve_api_key(self) -> str:
         api_key = self.api_key or os.environ.get("DEEPSEEK_API_KEY", "").strip()
