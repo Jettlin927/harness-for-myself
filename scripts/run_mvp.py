@@ -13,7 +13,7 @@ from src.harness import HarnessAgent, RuleBasedLLM, RunConfig  # noqa: E402
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run minimal harness MVP loop.")
+    parser = argparse.ArgumentParser(description="Run HAU MVP loop.")
     parser.add_argument("goal", help="Task/goal for the harness agent.")
     parser.add_argument("--max-steps", type=int, default=8)
     parser.add_argument("--context", default="{}", help="JSON object string")

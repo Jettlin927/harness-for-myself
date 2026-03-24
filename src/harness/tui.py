@@ -97,7 +97,7 @@ def _render_tool_turn(record: "TurnRecord") -> Panel:
         body.append(f"\n[dim]schema retry: {schema_retries}x[/dim]")
 
     title_tool = (
-        f"[{_STYLE_DIM}]Turn {record.turn}[/{_STYLE_DIM}]  [{_STYLE_TOOL}]工具调用[/{_STYLE_TOOL}]"
+        f"[{_STYLE_DIM}]Turn {record.turn}[/{_STYLE_DIM}]  [{_STYLE_TOOL}]Tool Call[/{_STYLE_TOOL}]"
     )
     return Panel(
         body,
@@ -117,7 +117,7 @@ def _render_final_turn(record: "TurnRecord") -> Panel:
 
     title_final = (
         f"[{_STYLE_DIM}]Turn {record.turn}[/{_STYLE_DIM}]"
-        f"  [{_STYLE_FINAL}]{_ICON_OK} 最终回答[/{_STYLE_FINAL}]"
+        f"  [{_STYLE_FINAL}]{_ICON_OK} Final Response[/{_STYLE_FINAL}]"
     )
     return Panel(
         Text.from_markup(f"{escape(content)}{footer}"),
@@ -130,15 +130,15 @@ def _render_final_turn(record: "TurnRecord") -> Panel:
 
 def _render_schema_error_turn(record: "TurnRecord") -> Panel:
     action = record.llm_action
-    error = action.get("error", "未知 Schema 错误")
+    error = action.get("error", "Unknown schema error")
     attempts = action.get("attempts", 1)
 
     body = Text.from_markup(
         f"[{_STYLE_SCHEMA_ERR}]{_ICON_SCHEMA} {escape(str(error))}[/{_STYLE_SCHEMA_ERR}]"
-        f"\n[dim]尝试次数: {attempts}[/dim]"
+        f"\n[dim]attempts: {attempts}[/dim]"
     )
     title_err = (
-        f"[{_STYLE_DIM}]Turn {record.turn}[/{_STYLE_DIM}]  [{_STYLE_ERR}]Schema 错误[/{_STYLE_ERR}]"
+        f"[{_STYLE_DIM}]Turn {record.turn}[/{_STYLE_DIM}]  [{_STYLE_ERR}]Schema Error[/{_STYLE_ERR}]"
     )
     return Panel(
         body,
@@ -213,7 +213,7 @@ class InteractiveSession:
             pass
         finally:
             self._stop_status()
-        self.console.print(f"\n[{_STYLE_DIM}]再见！[/{_STYLE_DIM}]\n")
+        self.console.print(f"\n[{_STYLE_DIM}]Goodbye![/{_STYLE_DIM}]\n")
 
     # ── private ───────────────────────────────────────────────────────────────
 
@@ -228,7 +228,7 @@ class InteractiveSession:
         if existing and existing.goals_completed:
             try:
                 answer = Prompt.ask(
-                    f"[{_STYLE_DIM}]发现上次会话（{len(existing.goals_completed)} 个目标已完成）。继续？[/{_STYLE_DIM}]",
+                    f"[{_STYLE_DIM}]Found previous session ({len(existing.goals_completed)} goals completed). Continue?[/{_STYLE_DIM}]",
                     choices=["y", "n"],
                     default="y",
                 )
@@ -244,15 +244,15 @@ class InteractiveSession:
     def _print_banner(self) -> None:
         goals_done = len(self._session.goals_completed)
         session_info = (
-            f"  [{_STYLE_DIM}]会话 {self._session.session_id[:8]}…  {goals_done} 个目标已完成[/{_STYLE_DIM}]"
+            f"  [{_STYLE_DIM}]Session {self._session.session_id[:8]}...  {goals_done} goals completed[/{_STYLE_DIM}]"
             if goals_done
-            else f"  [{_STYLE_DIM}]新会话 {self._session.session_id[:8]}…[/{_STYLE_DIM}]"
+            else f"  [{_STYLE_DIM}]New session {self._session.session_id[:8]}...[/{_STYLE_DIM}]"
         )
         self.console.print()
         self.console.print(
             Panel.fit(
-                f"[{_STYLE_HEADER}]Minimal Agent Harness[/{_STYLE_HEADER}]  "
-                f"[{_STYLE_DIM}]v0.1.0  •  输入目标开始对话，Ctrl+C 或 exit 退出[/{_STYLE_DIM}]"
+                f"[{_STYLE_HEADER}]HAU[/{_STYLE_HEADER}]  "
+                f"[{_STYLE_DIM}]v0.1.0  •  Enter a goal to chat, Ctrl+C or exit to quit[/{_STYLE_DIM}]"
                 + session_info,
                 border_style="cyan",
                 padding=(0, 2),
@@ -263,7 +263,7 @@ class InteractiveSession:
     def _prompt_goal(self) -> str | None:
         """Show the user prompt and return the input string, or None to exit."""
         try:
-            goal = Prompt.ask(f"[bold green]{_ICON_USER} 你[/bold green]").strip()
+            goal = Prompt.ask(f"[bold green]{_ICON_USER} You[/bold green]").strip()
         except (EOFError, KeyboardInterrupt):
             return None
         if goal.lower() in {"exit", "quit", "q", "bye", "\\q"}:
@@ -280,7 +280,7 @@ class InteractiveSession:
             context["session_history"] = self._session.accumulated_summary
 
         # Start spinner for the first LLM call
-        self._start_status("思考中…")
+        self._start_status("Thinking...")
 
         def on_turn(record: "TurnRecord") -> None:
             # Stop spinner, render the completed turn, restart for next turn
@@ -289,13 +289,13 @@ class InteractiveSession:
 
             action_type = record.llm_action.get("action_type") or record.llm_action.get("type", "")
             if action_type == "tool_call":
-                self._start_status("继续思考…")
+                self._start_status("Thinking...")
 
         try:
             result = self.agent.run(goal=goal, context=context, on_turn=on_turn)
         except KeyboardInterrupt:
             self._stop_status()
-            self.console.print(f"\n[{_STYLE_DIM}]已中断[/{_STYLE_DIM}]\n")
+            self.console.print(f"\n[{_STYLE_DIM}]Interrupted[/{_STYLE_DIM}]\n")
             return
         finally:
             self._stop_status()
@@ -323,7 +323,7 @@ class InteractiveSession:
             f"  [{_STYLE_DIM}]"
             f"[/{_STYLE_DIM}][{stop_style}]{_ICON_OK}[/{stop_style}]"
             f"  stop=[bold]{stop}[/bold]"
-            f"  {turns} 轮"
+            f"  {turns} turns"
             f"  [{_STYLE_DIM}]{duration:.2f}s[/{_STYLE_DIM}]"
             f"  [{_STYLE_DIM}]{escape(log)}[/{_STYLE_DIM}]"
         )
