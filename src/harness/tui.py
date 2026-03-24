@@ -202,9 +202,7 @@ class InteractiveSession:
         if self.agent.config.project_root:
             from .context import load_project_context
 
-            self._project_context = load_project_context(
-                Path(self.agent.config.project_root)
-            )
+            self._project_context = load_project_context(Path(self.agent.config.project_root))
 
     # ── public ────────────────────────────────────────────────────────────────
 
@@ -257,27 +255,21 @@ class InteractiveSession:
         sid = self._session.session_id[:8]
         if goals_done:
             session_info = (
-                f"  [{_STYLE_DIM}]Session {sid}...  "
-                f"{goals_done} goals completed[/{_STYLE_DIM}]"
+                f"  [{_STYLE_DIM}]Session {sid}...  {goals_done} goals completed[/{_STYLE_DIM}]"
             )
         else:
-            session_info = (
-                f"  [{_STYLE_DIM}]New session {sid}...[/{_STYLE_DIM}]"
-            )
+            session_info = f"  [{_STYLE_DIM}]New session {sid}...[/{_STYLE_DIM}]"
         yolo_warn = ""
         if self.agent.config.trust_level == "yolo":
             yolo_warn = (
-                "\n  [bold red]⚠ YOLO mode: all operations execute "
-                "without confirmation[/bold red]"
+                "\n  [bold red]⚠ YOLO mode: all operations execute without confirmation[/bold red]"
             )
         self.console.print()
         self.console.print(
             Panel.fit(
                 f"[{_STYLE_HEADER}]HAU[/{_STYLE_HEADER}]  "
                 f"[{_STYLE_DIM}]v0.1.0  •  Enter a goal to chat, "
-                f"Ctrl+C or exit to quit[/{_STYLE_DIM}]"
-                + session_info
-                + yolo_warn,
+                f"Ctrl+C or exit to quit[/{_STYLE_DIM}]" + session_info + yolo_warn,
                 border_style="cyan",
                 padding=(0, 2),
             )
@@ -286,12 +278,9 @@ class InteractiveSession:
             pt = self._project_context.get("project_type", {})
             langs = ", ".join(pt.get("languages", []))
             git = self._project_context.get("git")
-            branch = (
-                git.get("branch", "?") if git else "not a git repo"
-            )
+            branch = git.get("branch", "?") if git else "not a git repo"
             self.console.print(
-                f"  [{_STYLE_DIM}]Project: {langs or 'unknown'}"
-                f"  Branch: {branch}[/{_STYLE_DIM}]"
+                f"  [{_STYLE_DIM}]Project: {langs or 'unknown'}  Branch: {branch}[/{_STYLE_DIM}]"
             )
         self.console.print()
 
@@ -333,10 +322,7 @@ class InteractiveSession:
             self._stop_status()
             self.console.print(render_turn(record))
 
-            action_type = (
-                record.llm_action.get("action_type")
-                or record.llm_action.get("type", "")
-            )
+            action_type = record.llm_action.get("action_type") or record.llm_action.get("type", "")
             if action_type == "tool_call":
                 self._start_status("Thinking...")
 
@@ -377,14 +363,10 @@ class InteractiveSession:
         """Prompt the user for approval before running a sensitive tool."""
         _ = arguments
         self._stop_status()
-        short = (
-            description[:80] + "..." if len(description) > 80
-            else description
-        )
+        short = description[:80] + "..." if len(description) > 80 else description
         try:
             answer = Prompt.ask(
-                f"[yellow]{_ICON_SCHEMA} Allow [bold]{tool_name}"
-                f"[/bold]: {escape(short)}?[/yellow]",
+                f"[yellow]{_ICON_SCHEMA} Allow [bold]{tool_name}[/bold]: {escape(short)}?[/yellow]",
                 choices=["y", "n"],
                 default="y",
             )

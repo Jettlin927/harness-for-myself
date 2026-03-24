@@ -3,6 +3,7 @@
 Scans the project root for configuration files, git state, and user-defined
 context to inject into the agent's working memory.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -42,9 +43,7 @@ def _load_context_md(root: Path) -> str | None:
         return text
 
     truncated = "\n".join(lines[:_MAX_CONTEXT_LINES])
-    truncated += (
-        f"\n[truncated: showing first {_MAX_CONTEXT_LINES} of {total} lines]"
-    )
+    truncated += f"\n[truncated: showing first {_MAX_CONTEXT_LINES} of {total} lines]"
     return truncated
 
 

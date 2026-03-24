@@ -62,43 +62,51 @@ class EditFileTests(unittest.TestCase):
     def test_single_match_replacement(self) -> None:
         p = self.root / "code.py"
         p.write_text("hello world\n", encoding="utf-8")
-        result = edit_file({
-            "path": str(p),
-            "old_text": "hello",
-            "new_text": "goodbye",
-        })
+        result = edit_file(
+            {
+                "path": str(p),
+                "old_text": "hello",
+                "new_text": "goodbye",
+            }
+        )
         self.assertEqual(result["replacements"], 1)
 
     def test_old_text_not_found_raises(self) -> None:
         p = self.root / "code.py"
         p.write_text("hello world\n", encoding="utf-8")
         with self.assertRaises(ValueError) as ctx:
-            edit_file({
-                "path": str(p),
-                "old_text": "missing",
-                "new_text": "x",
-            })
+            edit_file(
+                {
+                    "path": str(p),
+                    "old_text": "missing",
+                    "new_text": "x",
+                }
+            )
         self.assertIn("not found", str(ctx.exception))
 
     def test_multiple_matches_raises(self) -> None:
         p = self.root / "dup.py"
         p.write_text("aaa\naaa\n", encoding="utf-8")
         with self.assertRaises(ValueError) as ctx:
-            edit_file({
-                "path": str(p),
-                "old_text": "aaa",
-                "new_text": "bbb",
-            })
+            edit_file(
+                {
+                    "path": str(p),
+                    "old_text": "aaa",
+                    "new_text": "bbb",
+                }
+            )
         self.assertIn("2 matches", str(ctx.exception))
 
     def test_replacement_content_correct(self) -> None:
         p = self.root / "verify.txt"
         p.write_text("foo bar baz\n", encoding="utf-8")
-        edit_file({
-            "path": str(p),
-            "old_text": "bar",
-            "new_text": "qux",
-        })
+        edit_file(
+            {
+                "path": str(p),
+                "old_text": "bar",
+                "new_text": "qux",
+            }
+        )
         self.assertEqual(p.read_text(encoding="utf-8"), "foo qux baz\n")
 
 

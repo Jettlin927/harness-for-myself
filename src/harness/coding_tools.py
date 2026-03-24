@@ -36,10 +36,7 @@ def read_file(arguments: dict[str, Any]) -> Any:
     truncated = total_lines > start + limit
     if truncated:
         last_shown = offset + len(selected) - 1
-        content += (
-            f"\n[truncated: showing lines {offset}-{last_shown}"
-            f" of {total_lines}]"
-        )
+        content += f"\n[truncated: showing lines {offset}-{last_shown} of {total_lines}]"
 
     return {
         "content": content,
@@ -74,8 +71,7 @@ def edit_file(arguments: dict[str, Any]) -> Any:
         raise ValueError("old_text not found in file")
     if count > 1:
         raise ValueError(
-            f"Found {count} matches for old_text, "
-            "provide more context to make it unique"
+            f"Found {count} matches for old_text, provide more context to make it unique"
         )
 
     new_content = content.replace(old_text, new_text, 1)

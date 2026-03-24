@@ -43,10 +43,7 @@ def _build_llm(args: argparse.Namespace) -> BaseLLM:
         )
     if llm_name == "rule":
         return RuleBasedLLM()
-    raise ValueError(
-        f"Unknown LLM backend: {llm_name!r}. "
-        "Choose 'rule' or 'deepseek'."
-    )
+    raise ValueError(f"Unknown LLM backend: {llm_name!r}. Choose 'rule' or 'deepseek'.")
 
 
 def _parse_context(raw: str) -> Dict[str, Any]:
@@ -73,8 +70,7 @@ def _build_run_config(args: argparse.Namespace) -> RunConfig:
         base.snapshot_dir = getattr(args, "snapshot_dir", base.snapshot_dir)
         base.log_dir = getattr(args, "log_dir", base.log_dir)
         base.goal_reached_token = (
-            getattr(args, "goal_reached_token", None)
-            or base.goal_reached_token
+            getattr(args, "goal_reached_token", None) or base.goal_reached_token
         )
         base.project_root = project_root
         base.allow_bash = allow_bash
@@ -117,9 +113,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         from .context import load_project_context
 
-        context["project"] = load_project_context(
-            Path(agent.config.project_root)
-        )
+        context["project"] = load_project_context(Path(agent.config.project_root))
     result = agent.run(goal=args.goal, context=context)
     _print_result(result)
     return 0
@@ -237,7 +231,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="HAU — Harness for Yourself.",
     )
     parser.add_argument(
-        "-V", "--version", action="version", version="%(prog)s 0.1.0",
+        "-V",
+        "--version",
+        action="version",
+        version="%(prog)s 0.1.0",
     )
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
     subparsers.required = True
@@ -266,8 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--trust",
         choices=["ask", "auto-edit", "yolo"],
         default="ask",
-        help="Trust level: ask (confirm all), auto-edit (auto file ops), "
-        "yolo (no confirmation).",
+        help="Trust level: ask (confirm all), auto-edit (auto file ops), yolo (no confirmation).",
     )
     shared.add_argument("--max-steps", type=int, default=8, metavar="N")
     shared.add_argument("--snapshot-dir", default=None, metavar="DIR")
@@ -364,7 +360,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Delete the most recent session.",
     )
     session_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         default=False,
         help="Show accumulated summary for each session.",

@@ -1,4 +1,5 @@
 """Tests for src/harness/context.py."""
+
 from __future__ import annotations
 
 import subprocess
@@ -41,15 +42,12 @@ class TestLoadContextMd(unittest.TestCase):
 
             total = _MAX_CONTEXT_LINES + 100
             lines = [f"line {i}" for i in range(total)]
-            (hau / "CONTEXT.md").write_text(
-                "\n".join(lines), encoding="utf-8"
-            )
+            (hau / "CONTEXT.md").write_text("\n".join(lines), encoding="utf-8")
 
             result = _load_context_md(root)
             assert result is not None
             self.assertIn(
-                f"[truncated: showing first {_MAX_CONTEXT_LINES}"
-                f" of {total} lines]",
+                f"[truncated: showing first {_MAX_CONTEXT_LINES} of {total} lines]",
                 result,
             )
             # Exactly _MAX_CONTEXT_LINES of content + 1 truncation notice
@@ -141,9 +139,7 @@ class TestLoadGitState(unittest.TestCase):
     def test_git_repo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            subprocess.run(
-                ["git", "init"], cwd=root, capture_output=True, check=True
-            )
+            subprocess.run(["git", "init"], cwd=root, capture_output=True, check=True)
             subprocess.run(
                 ["git", "config", "user.email", "test@test.com"],
                 cwd=root,
@@ -157,9 +153,7 @@ class TestLoadGitState(unittest.TestCase):
                 check=True,
             )
             (root / "README.md").write_text("hello", encoding="utf-8")
-            subprocess.run(
-                ["git", "add", "."], cwd=root, capture_output=True, check=True
-            )
+            subprocess.run(["git", "add", "."], cwd=root, capture_output=True, check=True)
             subprocess.run(
                 ["git", "commit", "-m", "init"],
                 cwd=root,
@@ -181,9 +175,7 @@ class TestLoadProjectContext(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             # Set up git
-            subprocess.run(
-                ["git", "init"], cwd=root, capture_output=True, check=True
-            )
+            subprocess.run(["git", "init"], cwd=root, capture_output=True, check=True)
             subprocess.run(
                 ["git", "config", "user.email", "test@test.com"],
                 cwd=root,
@@ -197,9 +189,7 @@ class TestLoadProjectContext(unittest.TestCase):
                 check=True,
             )
             (root / "README.md").write_text("hello", encoding="utf-8")
-            subprocess.run(
-                ["git", "add", "."], cwd=root, capture_output=True, check=True
-            )
+            subprocess.run(["git", "add", "."], cwd=root, capture_output=True, check=True)
             subprocess.run(
                 ["git", "commit", "-m", "init"],
                 cwd=root,
@@ -215,9 +205,7 @@ class TestLoadProjectContext(unittest.TestCase):
             # Set up context
             hau = root / ".hau"
             hau.mkdir()
-            (hau / "CONTEXT.md").write_text(
-                "# Context\n", encoding="utf-8"
-            )
+            (hau / "CONTEXT.md").write_text("# Context\n", encoding="utf-8")
 
             ctx = load_project_context(root)
 

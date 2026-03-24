@@ -26,8 +26,7 @@ class AnthropicLLM(BaseLLM):
         super().__init__()
         if anthropic is None:
             raise ImportError(
-                "The 'anthropic' package is required. "
-                "Install it with: pip install anthropic"
+                "The 'anthropic' package is required. Install it with: pip install anthropic"
             )
         self.model = model
         self.tool_schemas = tool_schemas or []
@@ -55,7 +54,8 @@ class AnthropicLLM(BaseLLM):
         return self._parse_response(response)
 
     def _generate_streaming(
-        self, kwargs: dict[str, Any],
+        self,
+        kwargs: dict[str, Any],
     ) -> Dict[str, Any]:
         """Stream tokens via on_token callback, return parsed final response."""
         with self._client.messages.stream(**kwargs) as stream:
@@ -73,7 +73,9 @@ class AnthropicLLM(BaseLLM):
         working_memory: Dict[str, Any],
     ) -> List[Dict[str, str]]:
         user_prompt = json.dumps(
-            working_memory, ensure_ascii=False, indent=2,
+            working_memory,
+            ensure_ascii=False,
+            indent=2,
         )
         return [{"role": "user", "content": user_prompt}]
 
@@ -105,11 +107,7 @@ class AnthropicLLM(BaseLLM):
         if env_path.exists():
             for line in env_path.read_text(encoding="utf-8").splitlines():
                 stripped = line.strip()
-                if (
-                    not stripped
-                    or stripped.startswith("#")
-                    or "=" not in stripped
-                ):
+                if not stripped or stripped.startswith("#") or "=" not in stripped:
                     continue
                 name, value = stripped.split("=", 1)
                 if name.strip() == "ANTHROPIC_API_KEY":

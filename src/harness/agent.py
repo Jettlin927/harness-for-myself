@@ -88,9 +88,7 @@ class HarnessAgent:
         if self.config.project_root:
             from .tools import register_coding_tools
 
-            register_coding_tools(
-                self.tools, allow_bash=self.config.allow_bash
-            )
+            register_coding_tools(self.tools, allow_bash=self.config.allow_bash)
         if hasattr(self.llm, "set_tool_schemas"):
             self.llm.set_tool_schemas(self.tools.get_tool_schemas())
         self.memory = MemoryManager(max_history_turns=self.config.max_history_turns)
@@ -161,10 +159,7 @@ class HarnessAgent:
             raw = action_result.get("llm_raw_output")
             if isinstance(raw, dict) and "_usage" in raw:
                 total_tokens += raw["_usage"].get("total_tokens", 0)
-            if (
-                self.config.max_tokens_budget
-                and total_tokens > self.config.max_tokens_budget
-            ):
+            if self.config.max_tokens_budget and total_tokens > self.config.max_tokens_budget:
                 stop_reason = "token_budget_exceeded"
                 break
             runtime_state.budget_used += len(action_result["schema_errors"]) + 1
@@ -393,9 +388,13 @@ class HarnessAgent:
             }
         )
 
-    _APPROVAL_REQUIRED_TOOLS = frozenset({
-        "bash", "edit_file", "write_text_file",
-    })
+    _APPROVAL_REQUIRED_TOOLS = frozenset(
+        {
+            "bash",
+            "edit_file",
+            "write_text_file",
+        }
+    )
 
     def _needs_approval(self, tool_name: str) -> bool:
         """Determine if a tool call needs user approval based on trust level."""
@@ -451,9 +450,7 @@ class HarnessAgent:
         return result
 
     @staticmethod
-    def _describe_tool_call(
-        tool_name: str, arguments: Dict[str, Any]
-    ) -> str:
+    def _describe_tool_call(tool_name: str, arguments: Dict[str, Any]) -> str:
         if tool_name == "bash":
             return str(arguments.get("command", ""))
         if tool_name == "edit_file":

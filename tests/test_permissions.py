@@ -108,10 +108,12 @@ class TestTrustEndToEnd(unittest.TestCase):
         result = agent.run("test", on_approve=deny)
 
         deny.assert_called_once()
-        self.assertTrue(any(
-            (t.tool_result or {}).get("error") == "User denied tool execution"
-            for t in result.turns
-        ))
+        self.assertTrue(
+            any(
+                (t.tool_result or {}).get("error") == "User denied tool execution"
+                for t in result.turns
+            )
+        )
 
     def test_yolo_skips_approval(self) -> None:
         """trust=yolo -> on_approve is never called even if provided."""

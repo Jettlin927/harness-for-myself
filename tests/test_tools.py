@@ -102,7 +102,9 @@ class ToolSchemaTests(unittest.TestCase):
             "required": ["x"],
         }
         self.dispatcher.register_tool(
-            "test_tool", lambda args: args, schema=schema,
+            "test_tool",
+            lambda args: args,
+            schema=schema,
         )
         self.assertIn("test_tool", self.dispatcher._schemas)
         self.assertEqual(self.dispatcher._schemas["test_tool"], schema)
@@ -139,7 +141,8 @@ class ToolSchemaTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            len(self.dispatcher.get_tool_schemas()), initial_count + 1,
+            len(self.dispatcher.get_tool_schemas()),
+            initial_count + 1,
         )
 
 

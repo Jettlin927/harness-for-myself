@@ -65,7 +65,8 @@ class TestAnthropicLLMToolUse(unittest.TestCase):
 
     @patch("src.harness.anthropic_llm.anthropic")
     def test_mixed_text_and_tool_use_prefers_tool(
-        self, mock_anthropic: MagicMock,
+        self,
+        mock_anthropic: MagicMock,
     ) -> None:
         mock_client = MagicMock()
         mock_anthropic.Anthropic.return_value = mock_client
@@ -73,7 +74,8 @@ class TestAnthropicLLMToolUse(unittest.TestCase):
             content=[
                 FakeTextBlock(text="Let me run that."),
                 FakeToolUseBlock(
-                    name="bash", input={"command": "ls"},
+                    name="bash",
+                    input={"command": "ls"},
                 ),
             ],
         )
@@ -86,7 +88,8 @@ class TestAnthropicLLMToolUse(unittest.TestCase):
 
     @patch("src.harness.anthropic_llm.anthropic")
     def test_tool_schemas_passed_to_api(
-        self, mock_anthropic: MagicMock,
+        self,
+        mock_anthropic: MagicMock,
     ) -> None:
         mock_client = MagicMock()
         mock_anthropic.Anthropic.return_value = mock_client
@@ -109,7 +112,8 @@ class TestAnthropicLLMToolUse(unittest.TestCase):
 
     @patch("src.harness.anthropic_llm.anthropic")
     def test_no_schemas_omits_tools_kwarg(
-        self, mock_anthropic: MagicMock,
+        self,
+        mock_anthropic: MagicMock,
     ) -> None:
         mock_client = MagicMock()
         mock_anthropic.Anthropic.return_value = mock_client
@@ -129,7 +133,8 @@ class TestAnthropicLLMStreaming(unittest.TestCase):
 
     @patch("src.harness.anthropic_llm.anthropic")
     def test_on_token_triggers_streaming_path(
-        self, mock_anthropic: MagicMock,
+        self,
+        mock_anthropic: MagicMock,
     ) -> None:
         """When on_token is set, generate() uses _generate_streaming."""
         mock_client = MagicMock()
@@ -169,7 +174,8 @@ class TestAnthropicLLMStreaming(unittest.TestCase):
 
     @patch("src.harness.anthropic_llm.anthropic")
     def test_no_on_token_uses_create(
-        self, mock_anthropic: MagicMock,
+        self,
+        mock_anthropic: MagicMock,
     ) -> None:
         """When on_token is None, generate() uses messages.create."""
         mock_client = MagicMock()
@@ -188,7 +194,8 @@ class TestAnthropicLLMStreaming(unittest.TestCase):
 
     @patch("src.harness.anthropic_llm.anthropic")
     def test_streaming_tool_use_no_text_tokens(
-        self, mock_anthropic: MagicMock,
+        self,
+        mock_anthropic: MagicMock,
     ) -> None:
         """Tool-use responses may emit no text deltas."""
         mock_client = MagicMock()
@@ -204,7 +211,8 @@ class TestAnthropicLLMStreaming(unittest.TestCase):
         event = MagicMock()
         event.type = "content_block_start"
         event.content_block = FakeToolUseBlock(
-            name="bash", input={"command": "ls"},
+            name="bash",
+            input={"command": "ls"},
         )
         mock_stream.__iter__ = MagicMock(return_value=iter([event]))
 

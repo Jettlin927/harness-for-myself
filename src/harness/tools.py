@@ -25,51 +25,66 @@ class ToolDispatcher:
 
     def __init__(self, allowed_write_roots: list[str | Path] | None = None) -> None:
         self.allowed_write_roots = [
-            Path(root).expanduser().resolve()
-            for root in (allowed_write_roots or [])
+            Path(root).expanduser().resolve() for root in (allowed_write_roots or [])
         ]
         self._tools: Dict[str, Callable[[dict[str, Any]], Any]] = {}
         self._schemas: Dict[str, dict[str, Any]] = {}
-        self.register_tool("echo", self._echo, schema={
-            "type": "object",
-            "description": "Echo back the given text",
-            "properties": {
-                "text": {
-                    "type": "string",
-                    "description": "Text to echo",
+        self.register_tool(
+            "echo",
+            self._echo,
+            schema={
+                "type": "object",
+                "description": "Echo back the given text",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "Text to echo",
+                    },
                 },
+                "required": ["text"],
             },
-            "required": ["text"],
-        })
-        self.register_tool("add", self._add, schema={
-            "type": "object",
-            "description": "Add two numbers together",
-            "properties": {
-                "a": {"type": "number", "description": "First number"},
-                "b": {"type": "number", "description": "Second number"},
-            },
-            "required": ["a", "b"],
-        })
-        self.register_tool("utc_now", self._utc_now, schema={
-            "type": "object",
-            "description": "Return the current UTC time",
-            "properties": {},
-        })
-        self.register_tool("write_text_file", self._write_text_file, schema={
-            "type": "object",
-            "description": "Write text content to a file",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Absolute file path",
+        )
+        self.register_tool(
+            "add",
+            self._add,
+            schema={
+                "type": "object",
+                "description": "Add two numbers together",
+                "properties": {
+                    "a": {"type": "number", "description": "First number"},
+                    "b": {"type": "number", "description": "Second number"},
                 },
-                "content": {
-                    "type": "string",
-                    "description": "Text content to write",
-                },
+                "required": ["a", "b"],
             },
-            "required": ["path", "content"],
-        })
+        )
+        self.register_tool(
+            "utc_now",
+            self._utc_now,
+            schema={
+                "type": "object",
+                "description": "Return the current UTC time",
+                "properties": {},
+            },
+        )
+        self.register_tool(
+            "write_text_file",
+            self._write_text_file,
+            schema={
+                "type": "object",
+                "description": "Write text content to a file",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute file path",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Text content to write",
+                    },
+                },
+                "required": ["path", "content"],
+            },
+        )
 
     def register_tool(
         self,
@@ -181,57 +196,69 @@ def register_coding_tools(
     """Register coding tools (read_file, edit_file, bash) on the dispatcher."""
     from .coding_tools import edit_file, read_file, run_bash
 
-    dispatcher.register_tool("read_file", read_file, schema={
-        "type": "object",
-        "description": "Read file contents with line numbers",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": "Absolute file path",
-            },
-            "offset": {
-                "type": "integer",
-                "description": "Starting line number (default 1)",
-            },
-            "limit": {
-                "type": "integer",
-                "description": "Max lines to read (default 200)",
-            },
-        },
-        "required": ["path"],
-    })
-    dispatcher.register_tool("edit_file", edit_file, schema={
-        "type": "object",
-        "description": "Replace exact text in a file",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": "Absolute file path",
-            },
-            "old_text": {
-                "type": "string",
-                "description": "Text to find (must match exactly once)",
-            },
-            "new_text": {
-                "type": "string",
-                "description": "Replacement text",
-            },
-        },
-        "required": ["path", "old_text", "new_text"],
-    })
-    if allow_bash:
-        dispatcher.register_tool("bash", run_bash, schema={
+    dispatcher.register_tool(
+        "read_file",
+        read_file,
+        schema={
             "type": "object",
-            "description": "Run a shell command",
+            "description": "Read file contents with line numbers",
             "properties": {
-                "command": {
+                "path": {
                     "type": "string",
-                    "description": "Shell command to execute",
+                    "description": "Absolute file path",
                 },
-                "timeout": {
+                "offset": {
                     "type": "integer",
-                    "description": "Timeout in seconds (default 30)",
+                    "description": "Starting line number (default 1)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max lines to read (default 200)",
                 },
             },
-            "required": ["command"],
-        })
+            "required": ["path"],
+        },
+    )
+    dispatcher.register_tool(
+        "edit_file",
+        edit_file,
+        schema={
+            "type": "object",
+            "description": "Replace exact text in a file",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Absolute file path",
+                },
+                "old_text": {
+                    "type": "string",
+                    "description": "Text to find (must match exactly once)",
+                },
+                "new_text": {
+                    "type": "string",
+                    "description": "Replacement text",
+                },
+            },
+            "required": ["path", "old_text", "new_text"],
+        },
+    )
+    if allow_bash:
+        dispatcher.register_tool(
+            "bash",
+            run_bash,
+            schema={
+                "type": "object",
+                "description": "Run a shell command",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "Shell command to execute",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Timeout in seconds (default 30)",
+                    },
+                },
+                "required": ["command"],
+            },
+        )
