@@ -414,7 +414,17 @@ class HarnessAgent:
         dangerous_tool_signatures: List[str],
         on_approve: Callable[[str, str, Dict[str, Any]], bool] | None = None,
     ) -> ToolExecutionResult:
-        if on_approve and self._needs_approval(tool_name):
+        if self._needs_approval(tool_name):
+            if on_approve is None:
+                return ToolExecutionResult(
+                    ok=False,
+                    output=None,
+                    error=(
+                        f"Tool '{tool_name}' requires approval but no approval "
+                        "callback provided. Use --trust yolo or run in "
+                        "interactive mode."
+                    ),
+                )
             desc = self._describe_tool_call(tool_name, arguments)
             if not on_approve(tool_name, desc, arguments):
                 return ToolExecutionResult(

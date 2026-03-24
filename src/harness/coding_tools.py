@@ -17,7 +17,11 @@ def read_file(arguments: dict[str, Any]) -> Any:
     if not p.exists():
         raise ValueError(f"File not found: {path}")
 
-    lines = p.read_text(encoding="utf-8").splitlines()
+    try:
+        text = p.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        raise ValueError(f"File is not valid UTF-8: {path}")
+    lines = text.splitlines()
     total_lines = len(lines)
 
     offset = arguments.get("offset", 1)

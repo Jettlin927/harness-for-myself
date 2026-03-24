@@ -125,6 +125,11 @@ class DeepSeekLLM(BaseLLM):
         self.base_url = base_url.rstrip("/")
         self.env_path = Path(env_path) if env_path is not None else self._default_env_path()
         self.transport = transport or self._default_transport
+        self._tool_names: list[str] = []
+
+    def set_tool_schemas(self, schemas: list[dict[str, Any]]) -> None:
+        """Update available tool names from schemas."""
+        self._tool_names = [s["name"] for s in schemas]
 
     def generate(self, working_memory: Dict[str, Any]) -> Dict[str, Any]:
         api_key = self._resolve_api_key()
@@ -192,15 +197,10 @@ class DeepSeekLLM(BaseLLM):
         self.env_path.write_text("\n".join(next_lines).rstrip() + "\n", encoding="utf-8")
 
     def _build_messages(self, working_memory: Dict[str, Any]) -> List[Dict[str, str]]:
-        tool_names = [
-            "echo(text)",
-            "add(a,b)",
-            "utc_now()",
-            "write_text_file(path, content)",
-            "read_file(path, offset?, limit?)",
-            "edit_file(path, old_text, new_text)",
-            "bash(command, timeout?)",
-        ]
+        if self._tool_names:
+            tool_names = self._tool_names
+        else:
+            tool_names = ["echo", "add", "utc_now", "write_text_file"]
         system_prompt = build_system_prompt(tool_names)
         user_prompt = json.dumps(
             working_memory,

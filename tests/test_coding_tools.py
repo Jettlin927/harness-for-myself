@@ -50,6 +50,14 @@ class ReadFileTests(unittest.TestCase):
             read_file({"path": str(self.root / "nope.txt")})
         self.assertIn("not found", str(ctx.exception).lower())
 
+    def test_read_binary_file_raises(self) -> None:
+        """Reading a binary file raises ValueError."""
+        binary_path = self.root / "binary.bin"
+        binary_path.write_bytes(b"\x80\x81\x82\xff\xfe")
+        with self.assertRaises(ValueError) as cm:
+            read_file({"path": str(binary_path)})
+        self.assertIn("not valid UTF-8", str(cm.exception))
+
 
 class EditFileTests(unittest.TestCase):
     def setUp(self) -> None:

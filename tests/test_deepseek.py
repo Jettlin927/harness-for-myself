@@ -146,5 +146,52 @@ class DeepSeekLLMTests(unittest.TestCase):
         self.assertEqual(result["content"], "plain answer")
 
 
+    def test_set_tool_schemas_updates_tool_names(self) -> None:
+        """set_tool_schemas populates _tool_names from schema list."""
+        mock_response = {
+            "choices": [
+                {"message": {"content": '{"type":"final_response","content":"ok"}'}}
+            ]
+        }
+        llm = DeepSeekLLM(
+            api_key="test",
+            transport=lambda *a: mock_response,
+        )
+        llm.set_tool_schemas([
+            {"name": "read_file", "description": "...", "input_schema": {}},
+            {"name": "bash", "description": "...", "input_schema": {}},
+        ])
+        self.assertEqual(llm._tool_names, ["read_file", "bash"])
+
+    def test_build_messages_uses_dynamic_tool_names(self) -> None:
+        """After set_tool_schemas, _build_messages uses dynamic names."""
+        captured: dict[str, object] = {}
+
+        def fake_transport(
+            payload: dict[str, object], api_key: str, base_url: str
+        ) -> dict[str, object]:
+            captured["payload"] = payload
+            return {
+                "choices": [
+                    {"message": {"content": '{"type":"final_response","content":"ok"}'}}
+                ]
+            }
+
+        llm = DeepSeekLLM(api_key="test", transport=fake_transport)
+        llm.set_tool_schemas([
+            {"name": "read_file", "description": "...", "input_schema": {}},
+            {"name": "bash", "description": "...", "input_schema": {}},
+        ])
+        llm.generate(
+            {"goal": "demo", "context": {}, "summary_memory": "", "history": []}
+        )
+        messages = captured["payload"]["messages"]
+        system_content = messages[0]["content"]
+        self.assertIn("read_file", system_content)
+        self.assertIn("bash", system_content)
+        # Should NOT contain old hardcoded tools
+        self.assertNotIn("echo", system_content)
+
+
 if __name__ == "__main__":
     unittest.main()

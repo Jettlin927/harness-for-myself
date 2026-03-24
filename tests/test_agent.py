@@ -62,6 +62,7 @@ class HarnessAgentTests(unittest.TestCase):
                     log_dir=tmp,
                     max_steps=3,
                     allowed_write_roots=(tmp,),
+                    trust_level="yolo",
                 ),
             )
             result = agent.run("save poem")
