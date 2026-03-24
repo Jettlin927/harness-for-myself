@@ -21,9 +21,7 @@ class SnapshotStore:
         tmp_path = path.with_suffix(".json.tmp")
         payload = dict(state)
         payload["turns"] = [asdict(turn) for turn in state.get("turns", [])]
-        tmp_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(str(tmp_path), str(path))
         return str(path)
 
@@ -40,8 +38,6 @@ class SnapshotStore:
         try:
             raw["turns"] = [TurnRecord(**turn) for turn in raw.get("turns", [])]
         except (TypeError, KeyError) as exc:
-            raise ValueError(
-                f"Snapshot file has invalid turn data: {path}"
-            ) from exc
+            raise ValueError(f"Snapshot file has invalid turn data: {path}") from exc
         raw["dangerous_tool_signatures"] = list(raw.get("dangerous_tool_signatures", []))
         return raw

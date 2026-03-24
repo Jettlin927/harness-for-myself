@@ -166,22 +166,22 @@ class TestNoApproveCallbackBlocks(unittest.TestCase):
     def test_no_approve_callback_blocks_sensitive_tool(self) -> None:
         """Without on_approve, sensitive tools are blocked in ask mode."""
         agent = HarnessAgent(
-            ScriptedLLM([
-                {
-                    "type": "tool_call",
-                    "tool_name": "bash",
-                    "arguments": {"command": "echo hi"},
-                },
-                {"type": "final_response", "content": "done"},
-            ]),
+            ScriptedLLM(
+                [
+                    {
+                        "type": "tool_call",
+                        "tool_name": "bash",
+                        "arguments": {"command": "echo hi"},
+                    },
+                    {"type": "final_response", "content": "done"},
+                ]
+            ),
             RunConfig(trust_level="ask", project_root="/tmp"),
         )
         result = agent.run(goal="test", on_approve=None)
         # bash should be blocked
         self.assertTrue(result.turns[0].tool_result["ok"] is False)
-        self.assertIn(
-            "requires approval", result.turns[0].tool_result["error"]
-        )
+        self.assertIn("requires approval", result.turns[0].tool_result["error"])
 
 
 if __name__ == "__main__":

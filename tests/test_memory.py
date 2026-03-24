@@ -51,7 +51,6 @@ class MemoryManagerTests(unittest.TestCase):
         self.assertTrue(memory.maybe_compress(turns))
         self.assertIn("turn 5: obs-5", memory.summary)
 
-
     def test_long_observation_truncated(self) -> None:
         """Observations exceeding _MAX_OBSERVATION_CHARS are truncated."""
         long_obs = "x" * 3000

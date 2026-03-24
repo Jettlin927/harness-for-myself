@@ -125,8 +125,10 @@ class AnthropicLLM(BaseLLM):
                 f"Schema feedback: {json.dumps(schema_feedback, ensure_ascii=False)}"
             )
 
-        first_msg = "\n".join(first_parts) if first_parts else json.dumps(
-            working_memory, ensure_ascii=False, indent=2
+        first_msg = (
+            "\n".join(first_parts)
+            if first_parts
+            else json.dumps(working_memory, ensure_ascii=False, indent=2)
         )
 
         messages: List[Dict[str, Any]] = [{"role": "user", "content": first_msg}]
@@ -157,29 +159,33 @@ class AnthropicLLM(BaseLLM):
                 # Bug C fix: use structured JSON for tool result content
                 tool_result_data = turn.get("tool_result")
                 if tool_result_data and isinstance(tool_result_data, dict):
-                    result_content = json.dumps(
-                        tool_result_data, ensure_ascii=False, default=str
-                    )
+                    result_content = json.dumps(tool_result_data, ensure_ascii=False, default=str)
                 else:
                     result_content = str(turn.get("observation", ""))
 
-                messages.append({
-                    "role": "user",
-                    "content": [{
-                        "type": "tool_result",
-                        "tool_use_id": tool_use_id,
-                        "content": result_content,
-                    }],
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_use_id,
+                                "content": result_content,
+                            }
+                        ],
+                    }
+                )
 
             elif action_type == "final_response":
                 # Bug A fix: insert bridging user message if last message is also assistant
                 if messages and messages[-1]["role"] == "assistant":
                     messages.append({"role": "user", "content": "Acknowledged. Continue."})
-                messages.append({
-                    "role": "assistant",
-                    "content": f"[Step {turn_num}] " + (action.get("content") or ""),
-                })
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": f"[Step {turn_num}] " + (action.get("content") or ""),
+                    }
+                )
 
         # If history was non-empty and last message is assistant, add continuation prompt
         if history and messages[-1]["role"] == "assistant":
@@ -213,19 +219,14 @@ class AnthropicLLM(BaseLLM):
         if not result and text_content is not None:
             result = {"type": "final_response", "content": text_content}
         elif not result:
-            raise ValueError(
-                "Anthropic response contained no usable content blocks."
-            )
+            raise ValueError("Anthropic response contained no usable content blocks.")
 
         # Extract usage information
         if hasattr(response, "usage") and response.usage:
             result["_usage"] = {
                 "input_tokens": response.usage.input_tokens,
                 "output_tokens": response.usage.output_tokens,
-                "total_tokens": (
-                    response.usage.input_tokens
-                    + response.usage.output_tokens
-                ),
+                "total_tokens": (response.usage.input_tokens + response.usage.output_tokens),
             }
         return result
 

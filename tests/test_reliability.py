@@ -177,9 +177,7 @@ class TokenBudgetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             agent = HarnessAgent(
                 llm=llm,
-                config=RunConfig(
-                    log_dir=tmp, max_steps=10, max_tokens_budget=8000
-                ),
+                config=RunConfig(log_dir=tmp, max_steps=10, max_tokens_budget=8000),
             )
             result = agent.run("token budget test")
             self.assertEqual(result.stop_reason, "token_budget_exceeded")

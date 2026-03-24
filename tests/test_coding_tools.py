@@ -275,11 +275,13 @@ class GrepSearchTests(unittest.TestCase):
         self.assertEqual(len(bin_matches), 0)
 
     def test_context_lines(self) -> None:
-        result = grep_search({
-            "pattern": "return",
-            "root": str(self.root),
-            "context_lines": 1,
-        })
+        result = grep_search(
+            {
+                "pattern": "return",
+                "root": str(self.root),
+                "context_lines": 1,
+            }
+        )
         self.assertGreaterEqual(result["total"], 1)
         match = result["matches"][0]
         # context should include surrounding lines

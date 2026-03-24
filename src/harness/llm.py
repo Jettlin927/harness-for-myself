@@ -41,9 +41,7 @@ def build_system_prompt(tool_names: list[str], *, native_tool_use: bool = False)
     return (
         "You are a coding agent. Your goal is to autonomously complete programming tasks "
         "given by the user. You operate inside a tool-using harness that validates your "
-        "output, executes tools, and feeds results back to you.\n\n"
-        + output_section
-        +
+        "output, executes tools, and feeds results back to you.\n\n" + output_section +
         #
         # --- Available tools ---
         #

@@ -225,11 +225,13 @@ def grep_search(arguments: dict[str, Any]) -> Any:
                     content = "\n".join(lines[start:end])
                 else:
                     content = line
-                matches.append({
-                    "path": str(file_path),
-                    "line": i + 1,
-                    "content": content,
-                })
+                matches.append(
+                    {
+                        "path": str(file_path),
+                        "line": i + 1,
+                        "content": content,
+                    }
+                )
 
     _walk(root_path)
     total = len(matches)

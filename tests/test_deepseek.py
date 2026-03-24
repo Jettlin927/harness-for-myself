@@ -145,22 +145,21 @@ class DeepSeekLLMTests(unittest.TestCase):
         self.assertEqual(result["type"], "final_response")
         self.assertEqual(result["content"], "plain answer")
 
-
     def test_set_tool_schemas_updates_tool_names(self) -> None:
         """set_tool_schemas populates _tool_names from schema list."""
         mock_response = {
-            "choices": [
-                {"message": {"content": '{"type":"final_response","content":"ok"}'}}
-            ]
+            "choices": [{"message": {"content": '{"type":"final_response","content":"ok"}'}}]
         }
         llm = DeepSeekLLM(
             api_key="test",
             transport=lambda *a: mock_response,
         )
-        llm.set_tool_schemas([
-            {"name": "read_file", "description": "...", "input_schema": {}},
-            {"name": "bash", "description": "...", "input_schema": {}},
-        ])
+        llm.set_tool_schemas(
+            [
+                {"name": "read_file", "description": "...", "input_schema": {}},
+                {"name": "bash", "description": "...", "input_schema": {}},
+            ]
+        )
         self.assertEqual(llm._tool_names, ["read_file", "bash"])
 
     def test_build_messages_uses_dynamic_tool_names(self) -> None:
@@ -172,19 +171,17 @@ class DeepSeekLLMTests(unittest.TestCase):
         ) -> dict[str, object]:
             captured["payload"] = payload
             return {
-                "choices": [
-                    {"message": {"content": '{"type":"final_response","content":"ok"}'}}
-                ]
+                "choices": [{"message": {"content": '{"type":"final_response","content":"ok"}'}}]
             }
 
         llm = DeepSeekLLM(api_key="test", transport=fake_transport)
-        llm.set_tool_schemas([
-            {"name": "read_file", "description": "...", "input_schema": {}},
-            {"name": "bash", "description": "...", "input_schema": {}},
-        ])
-        llm.generate(
-            {"goal": "demo", "context": {}, "summary_memory": "", "history": []}
+        llm.set_tool_schemas(
+            [
+                {"name": "read_file", "description": "...", "input_schema": {}},
+                {"name": "bash", "description": "...", "input_schema": {}},
+            ]
         )
+        llm.generate({"goal": "demo", "context": {}, "summary_memory": "", "history": []})
         messages = captured["payload"]["messages"]
         system_content = messages[0]["content"]
         self.assertIn("read_file", system_content)
@@ -209,15 +206,11 @@ class TestDeepSeekRetry(unittest.TestCase):
             if call_count == 1:
                 raise RuntimeError("DeepSeek API returned HTTP 500: internal error")
             return {
-                "choices": [
-                    {"message": {"content": '{"type":"final_response","content":"ok"}'}}
-                ]
+                "choices": [{"message": {"content": '{"type":"final_response","content":"ok"}'}}]
             }
 
         llm = DeepSeekLLM(api_key="secret", transport=flaky_transport)
-        result = llm.generate(
-            {"goal": "test", "context": {}, "summary_memory": "", "history": []}
-        )
+        result = llm.generate({"goal": "test", "context": {}, "summary_memory": "", "history": []})
 
         self.assertEqual(result["type"], "final_response")
         self.assertEqual(result["content"], "ok")
@@ -235,9 +228,7 @@ class TestDeepSeekRetry(unittest.TestCase):
 
         llm = DeepSeekLLM(api_key="secret", transport=bad_transport)
         with self.assertRaises(RuntimeError) as ctx:
-            llm.generate(
-                {"goal": "test", "context": {}, "summary_memory": "", "history": []}
-            )
+            llm.generate({"goal": "test", "context": {}, "summary_memory": "", "history": []})
 
         self.assertIn("HTTP 400", str(ctx.exception))
         mock_time.sleep.assert_not_called()

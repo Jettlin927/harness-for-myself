@@ -487,8 +487,7 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
             self.assertNotEqual(
                 msgs[i]["role"],
                 msgs[i - 1]["role"],
-                f"Consecutive messages at index {i - 1} and {i} both have "
-                f"role '{msgs[i]['role']}'",
+                f"Consecutive messages at index {i - 1} and {i} both have role '{msgs[i]['role']}'",
             )
 
     def test_empty_history_with_schema_feedback(self) -> None:
@@ -525,8 +524,7 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
                         "arguments": {"path": "/tmp/test.py"},
                     },
                     "observation": (
-                        "tool=read_file; ok=True; "
-                        "output={'content': 'hello'}; error=None"
+                        "tool=read_file; ok=True; output={'content': 'hello'}; error=None"
                     ),
                     "tool_result": {
                         "ok": True,
@@ -542,8 +540,7 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
         msgs = AnthropicLLM._build_messages(wm)
         # Find the user message with tool_result block
         tool_result_msgs = [
-            m for m in msgs
-            if m["role"] == "user" and isinstance(m["content"], list)
+            m for m in msgs if m["role"] == "user" and isinstance(m["content"], list)
         ]
         self.assertTrue(len(tool_result_msgs) > 0, "No tool result message found")
         block = tool_result_msgs[0]["content"][0]
@@ -656,9 +653,7 @@ class TestNetworkErrorRetry(unittest.TestCase):
         mock_client = MagicMock()
         mock_anthropic.Anthropic.return_value = mock_client
 
-        auth_error = type("APIStatusError", (Exception,), {"status_code": 401})(
-            "unauthorized"
-        )
+        auth_error = type("APIStatusError", (Exception,), {"status_code": 401})("unauthorized")
         mock_client.messages.create.side_effect = auth_error
 
         llm = AnthropicLLM(api_key="test-key")

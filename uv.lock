@@ -107,6 +107,7 @@ dev = [
 [package.dev-dependencies]
 dev = [
     { name = "pyright" },
+    { name = "pytest" },
     { name = "ruff" },
 ]
 
@@ -121,6 +122,7 @@ provides-extras = ["dev", "anthropic"]
 [package.metadata.requires-dev]
 dev = [
     { name = "pyright", specifier = ">=1.1.400" },
+    { name = "pytest", specifier = ">=9.0.2" },
     { name = "ruff", specifier = ">=0.15.7" },
 ]
 
