@@ -366,11 +366,10 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
             "history": [],
         }
         msgs = AnthropicLLM._build_messages(wm)
-        self.assertIn("Previous summary: Previously read file a.py",
-                       msgs[0]["content"])
+        self.assertIn("Summary: Previously read file a.py", msgs[0]["content"])
         self.assertIn("Context:", msgs[0]["content"])
 
-    def test_tool_call_history_produces_tool_use_and_result(self) -> None:
+    def test_tool_call_history_produces_assistant_and_user(self) -> None:
         wm = {
             "goal": "read file",
             "context": {},
@@ -384,6 +383,7 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
                         "arguments": {"path": "/tmp/test.py"},
                     },
                     "observation": "tool=read_file; ok=True; output=content",
+                    "tool_result": {"ok": True, "output": "content", "error": None},
                 },
             ],
         }
@@ -391,23 +391,14 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
 
         # First msg: user with goal
         self.assertEqual(msgs[0]["role"], "user")
-        # Second msg: assistant with tool_use
+        # Second msg: assistant with tool call info
         self.assertEqual(msgs[1]["role"], "assistant")
-        tool_block = msgs[1]["content"][0]
-        self.assertEqual(tool_block["type"], "tool_use")
-        self.assertEqual(tool_block["name"], "read_file")
-        self.assertEqual(tool_block["id"], "toolu_history_1")
-        # Third msg: user with tool_result + continuation
+        self.assertIn("read_file", msgs[1]["content"])
+        # Third msg: user with tool result
         self.assertEqual(msgs[2]["role"], "user")
-        content = msgs[2]["content"]
-        self.assertIsInstance(content, list)
-        self.assertEqual(content[0]["type"], "tool_result")
-        self.assertEqual(
-            content[0]["tool_use_id"], "toolu_history_1"
-        )
-        # Continuation text appended
-        self.assertEqual(content[1]["type"], "text")
-        self.assertIn("Continue working", content[1]["text"])
+        # Verify alternating roles
+        for i in range(1, len(msgs)):
+            self.assertNotEqual(msgs[i]["role"], msgs[i - 1]["role"])
 
     def test_final_response_history(self) -> None:
         wm = {
@@ -422,6 +413,7 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
                         "content": "I finished.",
                     },
                     "observation": "",
+                    "tool_result": None,
                 },
             ],
         }
@@ -430,7 +422,7 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
         self.assertEqual(msgs[1]["role"], "assistant")
         self.assertEqual(msgs[1]["content"], "I finished.")
         self.assertEqual(msgs[2]["role"], "user")
-        self.assertIn("Continue working", msgs[2]["content"])
+        self.assertIn("Continue", msgs[2]["content"])
 
     def test_schema_feedback_appended(self) -> None:
         wm = {
@@ -445,6 +437,7 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
                         "content": "done",
                     },
                     "observation": "",
+                    "tool_result": None,
                 },
             ],
             "schema_feedback": "Your output was invalid JSON",
@@ -453,6 +446,107 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
         last_msg = msgs[-1]
         self.assertEqual(last_msg["role"], "user")
         self.assertIn("Your output was invalid JSON", last_msg["content"])
+
+    def test_consecutive_final_responses_alternate_roles(self) -> None:
+        """Bug A: Two consecutive final_response turns must not produce
+        consecutive assistant messages."""
+        wm = {
+            "goal": "test goal",
+            "context": {},
+            "summary_memory": "",
+            "history": [
+                {
+                    "turn": 1,
+                    "action": {
+                        "action_type": "final_response",
+                        "content": "First response",
+                    },
+                    "observation": "First response",
+                    "tool_result": None,
+                },
+                {
+                    "turn": 2,
+                    "action": {
+                        "action_type": "final_response",
+                        "content": "Second response",
+                    },
+                    "observation": "Second response",
+                    "tool_result": None,
+                },
+            ],
+        }
+        msgs = AnthropicLLM._build_messages(wm)
+        for i in range(1, len(msgs)):
+            self.assertNotEqual(
+                msgs[i]["role"],
+                msgs[i - 1]["role"],
+                f"Consecutive messages at index {i - 1} and {i} both have "
+                f"role '{msgs[i]['role']}'",
+            )
+
+    def test_empty_history_with_schema_feedback(self) -> None:
+        """Bug B: Empty history + schema_feedback must not produce
+        consecutive user messages."""
+        wm = {
+            "goal": "test goal",
+            "context": {},
+            "summary_memory": "",
+            "history": [],
+            "schema_feedback": {
+                "last_error": "Invalid output format",
+                "required_types": ["tool_call", "final_response"],
+            },
+        }
+        msgs = AnthropicLLM._build_messages(wm)
+        self.assertEqual(len(msgs), 1)
+        self.assertEqual(msgs[0]["role"], "user")
+        self.assertIn("Schema feedback", msgs[0]["content"])
+        self.assertIn("Invalid output format", msgs[0]["content"])
+
+    def test_tool_result_uses_structured_data(self) -> None:
+        """Bug C: tool_result content should use JSON format, not Python repr."""
+        wm = {
+            "goal": "read file",
+            "context": {},
+            "summary_memory": "",
+            "history": [
+                {
+                    "turn": 1,
+                    "action": {
+                        "action_type": "tool_call",
+                        "tool_name": "read_file",
+                        "arguments": {"path": "/tmp/test.py"},
+                    },
+                    "observation": (
+                        "tool=read_file; ok=True; "
+                        "output={'content': 'hello'}; error=None"
+                    ),
+                    "tool_result": {
+                        "ok": True,
+                        "output": {"content": "hello"},
+                        "error": None,
+                        "retryable": False,
+                        "blocked": False,
+                        "attempts": 1,
+                    },
+                },
+            ],
+        }
+        msgs = AnthropicLLM._build_messages(wm)
+        # Find the user message with tool result (not the first goal message)
+        tool_result_msgs = [
+            m for m in msgs if m["role"] == "user" and "ok" in str(m["content"])
+        ]
+        self.assertTrue(len(tool_result_msgs) > 0, "No tool result message found")
+        content = tool_result_msgs[0]["content"]
+        # Should be valid JSON
+        import json
+
+        parsed = json.loads(content)
+        self.assertTrue(parsed["ok"])
+        self.assertEqual(parsed["output"]["content"], "hello")
+        # Should NOT contain Python-style repr markers
+        self.assertNotIn("{'content':", content)
 
 
 class TestAnthropicLLMImportError(unittest.TestCase):

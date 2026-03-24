@@ -76,79 +76,76 @@ class AnthropicLLM(BaseLLM):
     def _build_messages(
         working_memory: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
-        # Build the first user message with goal + context + summary
-        first_msg = f"Goal: {working_memory.get('goal', '')}"
-        ctx = working_memory.get("context")
-        if ctx:
-            first_msg += (
-                f"\n\nContext: {json.dumps(ctx, ensure_ascii=False)}"
+        history: List[Dict[str, Any]] = working_memory.get("history", [])
+        schema_feedback = working_memory.get("schema_feedback")
+
+        # Build the initial user message with goal + context + summary
+        first_parts = []
+        if working_memory.get("goal"):
+            first_parts.append(f"Goal: {working_memory['goal']}")
+        if working_memory.get("context"):
+            first_parts.append(
+                f"Context: {json.dumps(working_memory['context'], ensure_ascii=False)}"
             )
-        summary = working_memory.get("summary_memory")
-        if summary:
-            first_msg += f"\n\nPrevious summary: {summary}"
+        if working_memory.get("summary_memory"):
+            first_parts.append(f"Summary: {working_memory['summary_memory']}")
 
-        messages: List[Dict[str, Any]] = [
-            {"role": "user", "content": first_msg},
-        ]
+        # Bug B fix: merge schema_feedback into initial message when history is empty
+        if not history and schema_feedback:
+            first_parts.append(
+                f"Schema feedback: {json.dumps(schema_feedback, ensure_ascii=False)}"
+            )
 
-        history = working_memory.get("history", [])
-        if not history:
-            return messages
+        first_msg = "\n".join(first_parts) if first_parts else json.dumps(
+            working_memory, ensure_ascii=False, indent=2
+        )
+
+        messages: List[Dict[str, Any]] = [{"role": "user", "content": first_msg}]
 
         for turn in history:
             action = turn.get("action", {})
-            action_type = action.get("action_type", "")
-            observation = turn.get("observation", "")
-            turn_num = turn.get("turn", 0)
+            action_type = action.get("action_type")
 
             if action_type == "tool_call":
-                tool_use_id = f"toolu_history_{turn_num}"
-                # Assistant message with tool_use block
-                messages.append({
-                    "role": "assistant",
-                    "content": [{
-                        "type": "tool_use",
-                        "id": tool_use_id,
-                        "name": action.get("tool_name", "unknown"),
-                        "input": action.get("arguments", {}),
-                    }],
-                })
-                # User message with tool_result block
-                messages.append({
-                    "role": "user",
-                    "content": [{
-                        "type": "tool_result",
-                        "tool_use_id": tool_use_id,
-                        "content": str(observation),
-                    }],
-                })
+                # Assistant decided to call a tool
+                assistant_content = json.dumps(
+                    {
+                        "tool_name": action.get("tool_name"),
+                        "arguments": action.get("arguments"),
+                    },
+                    ensure_ascii=False,
+                )
+                # Bug A fix: insert bridging user message if last message is also assistant
+                if messages and messages[-1]["role"] == "assistant":
+                    messages.append({"role": "user", "content": "Acknowledged. Continue."})
+                messages.append({"role": "assistant", "content": assistant_content})
+
+                # Bug C fix: use structured tool_result data with json.dumps
+                tool_result_data = turn.get("tool_result")
+                if tool_result_data and isinstance(tool_result_data, dict):
+                    content = json.dumps(tool_result_data, ensure_ascii=False, default=str)
+                else:
+                    content = str(turn.get("observation", ""))
+                messages.append({"role": "user", "content": content})
+
             elif action_type == "final_response":
-                content = action.get("content", "")
-                if content:
-                    messages.append({
-                        "role": "assistant",
-                        "content": str(content),
-                    })
-            # schema_error turns are skipped
+                # Bug A fix: insert bridging user message if last message is also assistant
+                if messages and messages[-1]["role"] == "assistant":
+                    messages.append({"role": "user", "content": "Acknowledged. Continue."})
+                messages.append(
+                    {"role": "assistant", "content": action.get("content") or ""}
+                )
 
-        # Build the continuation prompt
-        continuation = "Continue working on the goal. What's your next step?"
-        schema_feedback = working_memory.get("schema_feedback")
-        if schema_feedback:
-            continuation += f"\n\nNote: {schema_feedback}"
-
-        # Ensure we end with a user message
-        if messages and messages[-1]["role"] == "assistant":
+        # If history was non-empty and last message is assistant, add continuation prompt
+        if history and messages[-1]["role"] == "assistant":
+            continuation = "Continue with the next step."
+            if schema_feedback:
+                continuation = (
+                    f"Schema feedback: "
+                    f"{json.dumps(schema_feedback, ensure_ascii=False)}\n"
+                    f"Please try again."
+                )
             messages.append({"role": "user", "content": continuation})
-        elif messages and messages[-1]["role"] == "user":
-            # Last message is already user (tool_result); append continuation
-            # as a separate text block or merge
-            last = messages[-1]["content"]
-            if isinstance(last, list):
-                # Merge continuation into the tool_result message
-                last.append({"type": "text", "text": continuation})
-            else:
-                messages.append({"role": "user", "content": continuation})
 
         return messages
 

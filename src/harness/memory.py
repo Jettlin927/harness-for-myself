@@ -41,6 +41,7 @@ class MemoryManager:
                 "turn": t.turn,
                 "action": t.llm_action,
                 "observation": t.observation,
+                "tool_result": t.tool_result,
             }
             for t in recent_turns
         ]
