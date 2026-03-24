@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -17,13 +18,30 @@ class SnapshotStore:
     def save(self, state: Dict[str, Any]) -> str:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         path = self.snapshot_dir / f"snapshot-{stamp}.json"
+        tmp_path = path.with_suffix(".json.tmp")
         payload = dict(state)
         payload["turns"] = [asdict(turn) for turn in state.get("turns", [])]
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        os.replace(str(tmp_path), str(path))
         return str(path)
 
     def load(self, path: str | Path) -> Dict[str, Any]:
-        raw = json.loads(Path(path).read_text(encoding="utf-8"))
-        raw["turns"] = [TurnRecord(**turn) for turn in raw.get("turns", [])]
+        target = Path(path)
+        if not target.exists():
+            raise ValueError(f"Snapshot file not found: {path}")
+        try:
+            raw = json.loads(target.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Snapshot file is corrupted (invalid JSON): {path}") from exc
+        if not isinstance(raw, dict):
+            raise ValueError(f"Snapshot file does not contain a JSON object: {path}")
+        try:
+            raw["turns"] = [TurnRecord(**turn) for turn in raw.get("turns", [])]
+        except (TypeError, KeyError) as exc:
+            raise ValueError(
+                f"Snapshot file has invalid turn data: {path}"
+            ) from exc
         raw["dangerous_tool_signatures"] = list(raw.get("dangerous_tool_signatures", []))
         return raw

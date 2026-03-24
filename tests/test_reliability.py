@@ -149,6 +149,72 @@ class HarnessReliabilityTests(unittest.TestCase):
             self.assertIn("Repeated dangerous tool call", result.turns[1].tool_result["error"])
 
 
+class TokenBudgetTests(unittest.TestCase):
+    def test_token_budget_exceeded_stops_run(self) -> None:
+        """Each action returns 5000 tokens; budget=8000 => stops after 2nd turn."""
+        llm = ScriptedLLM(
+            [
+                {
+                    "type": "tool_call",
+                    "tool_name": "echo",
+                    "arguments": {"text": "a"},
+                    "_usage": {"total_tokens": 5000},
+                },
+                {
+                    "type": "tool_call",
+                    "tool_name": "echo",
+                    "arguments": {"text": "b"},
+                    "_usage": {"total_tokens": 5000},
+                },
+                {
+                    "type": "tool_call",
+                    "tool_name": "echo",
+                    "arguments": {"text": "c"},
+                    "_usage": {"total_tokens": 5000},
+                },
+            ]
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = HarnessAgent(
+                llm=llm,
+                config=RunConfig(
+                    log_dir=tmp, max_steps=10, max_tokens_budget=8000
+                ),
+            )
+            result = agent.run("token budget test")
+            self.assertEqual(result.stop_reason, "token_budget_exceeded")
+            # Turn 1 completes (5000 tokens), turn 2 generation triggers
+            # budget check (10000 > 8000) and breaks before tool execution,
+            # so only 1 turn is recorded.
+            self.assertEqual(len(result.turns), 1)
+
+    def test_token_budget_none_allows_unlimited(self) -> None:
+        """With max_tokens_budget=None, all turns run without token budget stop."""
+        llm = ScriptedLLM(
+            [
+                {
+                    "type": "tool_call",
+                    "tool_name": "echo",
+                    "arguments": {"text": "a"},
+                    "_usage": {"total_tokens": 99999},
+                },
+                {
+                    "type": "final_response",
+                    "content": "done",
+                    "_usage": {"total_tokens": 99999},
+                },
+            ]
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = HarnessAgent(
+                llm=llm,
+                config=RunConfig(log_dir=tmp, max_tokens_budget=None),
+            )
+            result = agent.run("unlimited tokens")
+            self.assertEqual(result.stop_reason, "final_response")
+            self.assertEqual(result.final_response, "done")
+
+
 class MemoryCompactionTests(unittest.TestCase):
     def test_summary_preserves_constraints_todos_and_evidence(self) -> None:
         from src.harness.memory import MemoryManager
