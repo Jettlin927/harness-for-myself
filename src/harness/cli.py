@@ -12,7 +12,7 @@ from .agent import HarnessAgent, RunConfig
 from .llm import BaseLLM, DeepSeekLLM, RuleBasedLLM
 
 
-def _load_strategy_config(path: str | None) -> "StrategyConfig | None":
+def _load_strategy_config(path: str | None) -> Any:
     """Load a StrategyConfig from *path*, or return None if path is None."""
     if path is None:
         return None
@@ -21,13 +21,32 @@ def _load_strategy_config(path: str | None) -> "StrategyConfig | None":
     return StrategyConfig.load(path)
 
 
-def _build_llm(llm_name: str, api_key: str | None) -> BaseLLM:
-    """Instantiate an LLM backend by name."""
-    if llm_name == "deepseek":
-        return DeepSeekLLM(api_key=api_key)
+def _build_llm(args: argparse.Namespace) -> BaseLLM:
+    """Instantiate an LLM backend from parsed CLI args."""
+    provider = getattr(args, "provider", None)
+    api_key = getattr(args, "api_key", None)
+    model = getattr(args, "model", None)
+
+    if provider == "anthropic":
+        from .anthropic_llm import AnthropicLLM
+
+        return AnthropicLLM(
+            model=model or "claude-sonnet-4-20250514",
+        )
+
+    # Legacy --llm flag (rule / deepseek)
+    llm_name = getattr(args, "llm", "rule")
+    if llm_name == "deepseek" or provider == "deepseek":
+        return DeepSeekLLM(
+            api_key=api_key,
+            **({"model": model} if model else {}),
+        )
     if llm_name == "rule":
         return RuleBasedLLM()
-    raise ValueError(f"Unknown LLM backend: {llm_name!r}. Choose 'rule' or 'deepseek'.")
+    raise ValueError(
+        f"Unknown LLM backend: {llm_name!r}. "
+        "Choose 'rule' or 'deepseek'."
+    )
 
 
 def _parse_context(raw: str) -> Dict[str, Any]:
@@ -71,7 +90,7 @@ def _build_run_config(args: argparse.Namespace) -> RunConfig:
 
 def _build_agent(args: argparse.Namespace) -> HarnessAgent:
     """Build an agent from parsed CLI args."""
-    llm = _build_llm(args.llm, getattr(args, "api_key", None))
+    llm = _build_llm(args)
     config = _build_run_config(args)
     return HarnessAgent(llm=llm, config=config)
 
@@ -221,6 +240,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="LLM backend to use (default: rule)",
     )
     shared.add_argument("--api-key", default=None, help="API key (deepseek only)")
+    shared.add_argument(
+        "--provider",
+        choices=["deepseek", "anthropic"],
+        default=None,
+        help="LLM provider (overrides --llm when set).",
+    )
+    shared.add_argument(
+        "--model",
+        default=None,
+        help="Override default model for the provider.",
+    )
     shared.add_argument("--max-steps", type=int, default=8, metavar="N")
     shared.add_argument("--snapshot-dir", default=None, metavar="DIR")
     shared.add_argument("--log-dir", default="logs", metavar="DIR")

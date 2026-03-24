@@ -63,6 +63,7 @@ class RunConfig:
     allowed_write_roots: tuple[str, ...] = ()
     project_root: str = ""
     allow_bash: bool = True
+    max_tokens_budget: int | None = None
 
 
 class HarnessAgent:
@@ -89,6 +90,8 @@ class HarnessAgent:
             register_coding_tools(
                 self.tools, allow_bash=self.config.allow_bash
             )
+        if hasattr(self.llm, "set_tool_schemas"):
+            self.llm.set_tool_schemas(self.tools.get_tool_schemas())
         self.memory = MemoryManager(max_history_turns=self.config.max_history_turns)
         self.error_policy = ErrorPolicy(tool_retry_limit=self.config.tool_retry_limit)
         self.snapshot_store = SnapshotStore(self.config.snapshot_dir or self.config.log_dir)
@@ -136,6 +139,8 @@ class HarnessAgent:
             failure_count=state["failure_count"],
         )
 
+        total_tokens = 0
+
         for _ in range(self.config.max_steps):
             stop_reason = self.stop_controller.check_before_turn(runtime_state) or stop_reason
             if stop_reason == "max_budget_reached":
@@ -146,6 +151,17 @@ class HarnessAgent:
                 goal=goal, context=context, turns=turns
             )
             action_result = self._generate_action_with_schema_retry(working_memory)
+
+            # Track token usage from LLM responses
+            raw = action_result.get("llm_raw_output")
+            if isinstance(raw, dict) and "_usage" in raw:
+                total_tokens += raw["_usage"].get("total_tokens", 0)
+            if (
+                self.config.max_tokens_budget
+                and total_tokens > self.config.max_tokens_budget
+            ):
+                stop_reason = "token_budget_exceeded"
+                break
             runtime_state.budget_used += len(action_result["schema_errors"]) + 1
             if not action_result["ok"]:
                 runtime_state.failure_count += 1
