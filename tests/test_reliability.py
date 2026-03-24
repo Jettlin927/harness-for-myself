@@ -215,6 +215,93 @@ class TokenBudgetTests(unittest.TestCase):
             self.assertEqual(result.final_response, "done")
 
 
+class LongConversationTests(unittest.TestCase):
+    """Stress tests for 20+ turn conversations with memory compression."""
+
+    def test_25_turn_run_completes_with_compression(self) -> None:
+        """25-turn run with max_history_turns=10 triggers compression and completes."""
+        script: list[dict[str, object]] = [
+            {"type": "tool_call", "tool_name": "echo", "arguments": {"text": f"step {i}"}}
+            for i in range(1, 25)
+        ]
+        script.append({"type": "final_response", "content": "all 25 turns done"})
+
+        llm = ScriptedLLM(script)
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = HarnessAgent(
+                llm=llm,
+                config=RunConfig(
+                    log_dir=tmp,
+                    max_steps=30,
+                    max_history_turns=10,
+                    max_failures=None,
+                ),
+            )
+            result = agent.run("long conversation test")
+
+            self.assertEqual(result.stop_reason, "final_response")
+            self.assertEqual(len(result.turns), 25)
+            self.assertTrue(
+                agent.memory.summary,
+                "Expected compression to produce a non-empty summary",
+            )
+
+    def test_compression_preserves_tagged_observations(self) -> None:
+        """Tagged observations (constraint:/todo:/evidence:) survive compression."""
+        from src.harness.memory import MemoryManager
+
+        memory = MemoryManager(max_history_turns=5)
+        turns = [
+            make_turn(1, "constraint: must use Python 3.12"),
+            make_turn(2, "todo: add type hints to module X"),
+            make_turn(3, "evidence: root cause is null pointer in line 42"),
+            make_turn(4, "normal observation"),
+            make_turn(5, "normal observation"),
+            make_turn(6, "normal observation"),
+            make_turn(7, "normal observation"),
+            make_turn(8, "normal observation"),
+            make_turn(9, "normal observation"),
+            make_turn(10, "normal observation"),
+            make_turn(11, "normal observation"),
+            make_turn(12, "normal observation"),
+            make_turn(13, "normal observation"),
+            make_turn(14, "normal observation"),
+            make_turn(15, "normal observation"),
+            make_turn(16, "normal observation"),
+            make_turn(17, "normal observation"),
+            make_turn(18, "normal observation"),
+            make_turn(19, "normal observation"),
+            make_turn(20, "final observation"),
+        ]
+
+        compressed = memory.maybe_compress(turns, max_total_turns=9)
+
+        self.assertTrue(compressed)
+        self.assertIn("must use Python 3.12", memory.summary)
+        self.assertIn("add type hints to module X", memory.summary)
+        self.assertIn("root cause is null pointer in line 42", memory.summary)
+
+    def test_working_memory_stays_bounded(self) -> None:
+        """build_working_memory history length never exceeds max_history_turns."""
+        from src.harness.memory import MemoryManager
+
+        for max_hist in (4, 8, 12):
+            memory = MemoryManager(max_history_turns=max_hist)
+            turns: list[TurnRecord] = []
+            for i in range(1, 31):
+                turns.append(make_turn(i, f"observation {i}"))
+                wm = memory.build_working_memory(goal="bounded test", context={}, turns=turns)
+                history_len = len(wm["history"])
+                self.assertLessEqual(
+                    history_len,
+                    max_hist,
+                    f"history length {history_len} exceeded max_history_turns={max_hist} "
+                    f"at turn {i}",
+                )
+            # Final check: with 30 turns, history should be exactly max_hist
+            self.assertEqual(len(wm["history"]), max_hist)
+
+
 class MemoryCompactionTests(unittest.TestCase):
     def test_summary_preserves_constraints_todos_and_evidence(self) -> None:
         from src.harness.memory import MemoryManager
