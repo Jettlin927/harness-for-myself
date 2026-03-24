@@ -2,13 +2,13 @@
 
 ## 结论先行
 
-当前仓库已经具备“可上传 GitHub 供别人阅读和本地运行”的基础，但还没有完全达到“开箱即用、方便分发、适合作为开源模板或可安装工具”的状态。
+当前仓库已具备”开箱即用、方便分发”的基础状态：
 
-如果现在上传，适合的定位应是：
-
-- 一个最小可运行的 agent harness MVP
-- 一个强调 deterministic / strong-guardrails / testable 的教学型或实验型项目
-- 不是生产级 agent 平台
+- `make setup` 一步完成安装，`harness` CLI 即可用
+- README 包含完整的 Quickstart、demo 示例输出、Roadmap
+- LICENSE (MIT)、CONTRIBUTING.md、CHANGELOG.md 齐全
+- GitHub Actions CI 已配置
+- 项目定位：一个强调 deterministic / strong-guardrails / testable 的教学型或实验型 agent harness
 
 ## 上 GitHub 前建议补齐的内容
 
@@ -26,7 +26,7 @@
 - `.env.example`
 - `LICENSE` ✅ 已添加（MIT）
 - `CONTRIBUTING.md` ✅ 已添加
-- `CHANGELOG.md`（哪怕先从 `0.1.0` 开始）
+- `CHANGELOG.md`（哪怕先从 `0.1.0` 开始）✅ 已添加
 
 ### 2. README 需要更像“开源首页”
 
@@ -130,7 +130,7 @@
 1. 补 `LICENSE`
 2. 补 `.env.example`
 3. 补一个正式 CLI 入口，而不是只保留 `scripts/*.py` ✅ `harness` CLI 已通过 `pyproject.toml` 注册
-4. README 增加最小 demo 输入/输出示例
+4. README 增加最小 demo 输入/输出示例 ✅ 已添加 Expected output 示例
 5. 去掉入口脚本里的 `sys.path` 注入，改为安装后执行
 6. 明确日志、输出、快照目录策略
 7. 在 GitHub Actions 上跑测试和 lint ✅ `.github/workflows/ci.yml` 已配置

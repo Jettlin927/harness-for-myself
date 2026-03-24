@@ -84,7 +84,7 @@
 ### 交付物
 - `evaluation runner`（离线回归执行器）。✅ `src/harness/eval.py` + `scripts/run_eval.py`
 - `benchmark suite`（基础任务集 + 期望结果）。✅ 内置用例集，支持自定义 JSON 用例文件
-- `versioned configs`（策略与参数版本管理）。
+- `versioned configs`（策略与参数版本管理）。✅ `src/harness/config.py` + `configs/default.json` + CLI `--config`
 - 最小可观测看板（哪怕先是命令行报表）。✅ `EvalReport` 命令行汇总（pass_rate、耗时、失败详情）
 
 ### 验收标准

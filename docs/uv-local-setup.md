@@ -29,6 +29,8 @@ uv pip install -e .       # 安装 harness CLI
 harness run "please add numbers"
 harness chat              # 多轮交互 TUI
 harness chat --llm deepseek --api-key sk-...
+harness eval              # 批量回归评估
+harness eval --config configs/default.json
 harness resume logs/snapshot_20260101_120000.json
 ```
 
