@@ -192,6 +192,7 @@ def register_coding_tools(
     dispatcher: ToolDispatcher,
     *,
     allow_bash: bool = True,
+    project_root: str | Path | None = None,
 ) -> None:
     """Register coding tools (read_file, edit_file, bash) on the dispatcher."""
     from .coding_tools import (
@@ -355,3 +356,93 @@ def register_coding_tools(
                 "required": ["command"],
             },
         )
+
+    # Register cross-session memory tools if project_root is available
+    if project_root:
+        _register_memory_tools(dispatcher, project_root)
+
+
+def _register_memory_tools(
+    dispatcher: ToolDispatcher,
+    project_root: str | Path,
+) -> None:
+    """Register save_memory and recall_memory tools on the dispatcher."""
+    from .project_memory import ProjectMemory
+
+    pm = ProjectMemory(project_root)
+
+    def save_memory(arguments: dict[str, Any]) -> Any:
+        key = arguments.get("key")
+        content = arguments.get("content")
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError("save_memory requires a non-empty 'key'.")
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("save_memory requires non-empty 'content'.")
+        tags = arguments.get("tags") or []
+        if not isinstance(tags, list):
+            tags = []
+        source = arguments.get("source", "")
+        entry = pm.save(key, content, source=source, tags=tags)
+        return {"saved": entry.key, "tags": entry.tags}
+
+    def recall_memory(arguments: dict[str, Any]) -> Any:
+        query = arguments.get("query", "")
+        tags = arguments.get("tags") or []
+        if not isinstance(tags, list):
+            tags = []
+        entries = pm.search(query=query, tags=tags if tags else None)
+        return {
+            "count": len(entries),
+            "entries": [{"key": e.key, "content": e.content, "tags": e.tags} for e in entries],
+        }
+
+    dispatcher.register_tool(
+        "save_memory",
+        save_memory,
+        schema={
+            "type": "object",
+            "description": (
+                "Save a piece of knowledge to persistent cross-session memory. "
+                "Use this to store important discoveries like project conventions, "
+                "test commands, architecture decisions, or constraints."
+            ),
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "description": "Unique identifier (e.g. 'test_command', 'architecture_notes')",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The knowledge to remember",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Classification tags (e.g. ['constraint', 'convention'])",
+                },
+            },
+            "required": ["key", "content"],
+        },
+    )
+    dispatcher.register_tool(
+        "recall_memory",
+        recall_memory,
+        schema={
+            "type": "object",
+            "description": (
+                "Retrieve previously saved knowledge from cross-session memory. "
+                "Search by content substring or filter by tags."
+            ),
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Substring to search for in memory content",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Filter by tags",
+                },
+            },
+        },
+    )

@@ -94,6 +94,14 @@ def build_system_prompt(tool_names: list[str], *, native_tool_use: bool = False)
         "`git push --force`, `git reset --hard`, or anything that deletes data "
         "or force-pushes to a remote. If the task seems to require a dangerous "
         "operation, ask the user for confirmation in a final_response instead."
+        + (
+            "\n\n## Memory\n"
+            "You have persistent memory across sessions. Use save_memory to store important "
+            "discoveries (project conventions, test commands, architecture decisions). Use "
+            "recall_memory to retrieve previously saved knowledge."
+            if "save_memory" in tool_names and "recall_memory" in tool_names
+            else ""
+        )
     )
 
 

@@ -88,7 +88,11 @@ class HarnessAgent:
         if self.config.project_root:
             from .tools import register_coding_tools
 
-            register_coding_tools(self.tools, allow_bash=self.config.allow_bash)
+            register_coding_tools(
+                self.tools,
+                allow_bash=self.config.allow_bash,
+                project_root=self.config.project_root,
+            )
         if hasattr(self.llm, "set_tool_schemas"):
             self.llm.set_tool_schemas(self.tools.get_tool_schemas())
         self.memory = MemoryManager(max_history_turns=self.config.max_history_turns)
@@ -394,6 +398,7 @@ class HarnessAgent:
             "edit_file",
             "write_text_file",
             "write_file",
+            "save_memory",
         }
     )
 
