@@ -68,6 +68,8 @@ class AnthropicLLM(BaseLLM):
             kwargs["tools"] = self.tool_schemas
 
         if self.on_token:
+            # Note: if streaming fails mid-way and retries, the user may see
+            # partial duplicate output. This is acceptable for transient errors.
             return self._call_with_retry(self._generate_streaming, kwargs)
 
         response = self._call_with_retry(self._client.messages.create, **kwargs)

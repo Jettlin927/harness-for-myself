@@ -31,10 +31,32 @@ Phase 1-4 全部完成。当前具备：编程工具（read_file/edit_file/write
 - **write_file 工具** — 支持创建新文件（拒绝覆盖已有文件，引导用 edit_file）
 - **多轮对话稳定性** — 修复 _build_messages 中连续同 role 消息、空历史 + schema_feedback、tool_result 序列化格式
 
+### Phase 5: Agent 智能提升（已完成）
+
+- **System prompt 重写** — 从 5 句话到结构化编程 agent 指令（搜索→理解→修改→验证工作流）
+- **上下文窗口扩展** — max_steps/max_history_turns 从 8 → 20
+- **工具输出截断** — observation 超 2000 字符自动截断，避免吃掉 history 窗口
+- **Turn 编号注入** — assistant 消息带 [Step N] 前缀
+- **Anthropic 原生 tool_use 恢复** — _build_messages 使用原生 tool_use/tool_result block
+- **System prompt 区分 native_tool_use** — Anthropic 不要求 JSON 格式
+- **压缩阈值动态化** — maybe_compress 阈值从硬编码 12 改为 max_history_turns + 4
+
+### Phase 6: 可靠性补齐（已完成）
+
+- **网络错误自动重试** — Anthropic/DeepSeek 对网络超时/429/5xx 最多重试 2 次（指数退避）
+- **Token 预算测试** — 覆盖 max_tokens_budget 停止逻辑
+- **快照原子写入** — .tmp + os.replace 防止写入中途崩溃导致损坏
+- **快照损坏恢复** — load() 捕获 JSON 错误，抛出清晰 ValueError
+- **长对话压力测试** — 25 轮运行、标签保留、memory 窗口边界验证
+- **make check 对齐 CI** — 加入 ruff format --check
+
+详见 `docs/phase5-9-evolution-assessment.md`
+
 ### 下一步（按优先级）
 
-1. **补充测试覆盖** — 流式输出、权限系统、项目上下文的集成测试
-2. **文档与分发** — 详见 `docs/github-readiness-and-distribution.md`
+1. **Phase 7: 自验证循环** — edit_file 后自动 lint/test、diff 预览
+2. **Phase 8: 产品化** — README 重写、PyPI 发布
+3. **Phase 9: 架构扩展** — MCP 协议、子 agent、IDE 集成
 
 ## 项目结构
 
