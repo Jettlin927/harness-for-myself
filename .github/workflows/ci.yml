@@ -7,25 +7,15 @@ on:
     branches: ["main"]
 
 jobs:
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: 安装 uv
+      - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
-
-      - name: 安装 Python 3.12
-        run: uv python install 3.12
-
-      - name: 创建虚拟环境
-        run: uv venv .venv --python 3.12
-
-      - name: 安装依赖
-        run: uv pip install -e ".[dev]" --python .venv/bin/python
 
       - name: Ruff lint
         run: uvx ruff check .
@@ -33,5 +23,51 @@ jobs:
       - name: Ruff format check
         run: uvx ruff format --check .
 
-      - name: 运行全量测试
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Create virtualenv
+        run: uv venv .venv --python ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv pip install -e ".[dev]" --python .venv/bin/python
+
+      - name: Run tests
         run: .venv/bin/python -m unittest discover -s tests -p "test_*.py" -v
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      - name: Create virtualenv
+        run: uv venv .venv --python 3.12
+
+      - name: Install dependencies
+        run: uv pip install -e ".[dev]" --python .venv/bin/python
+
+      - name: Pyright typecheck
+        run: uv run pyright src/
+        continue-on-error: true

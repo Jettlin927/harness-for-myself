@@ -1,11 +1,26 @@
 [project]
 name = "hau"
 version = "0.1.0"
-description = "HAU — Harness for Yourself. A testable single-agent harness with strict schemas and reliability guardrails."
+description = "A testable programming agent harness that can autonomously read, search, edit code, and run tests."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
 dependencies = ["rich>=13.0"]
+keywords = ["agent", "harness", "coding-agent", "llm", "tool-use"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourname/hau"
+Repository = "https://github.com/yourname/hau"
+Issues = "https://github.com/yourname/hau/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=9.0.2"]
