@@ -6,6 +6,7 @@ from .eval import EvalCase, EvalReport, EvalRunner
 from .llm import DeepSeekLLM, RuleBasedLLM, ScriptedLLM, build_system_prompt
 from .session import SessionManager, SessionState
 from .tools import RetryableToolError
+from .types import TrustLevel
 
 __all__ = [
     "HarnessAgent",
@@ -16,6 +17,7 @@ __all__ = [
     "DeepSeekLLM",
     "build_system_prompt",
     "RetryableToolError",
+    "TrustLevel",
     "EvalCase",
     "EvalRunner",
     "EvalReport",

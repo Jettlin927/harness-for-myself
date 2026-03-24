@@ -64,6 +64,7 @@ def _build_run_config(args: argparse.Namespace) -> RunConfig:
     """Build a RunConfig from parsed CLI args, optionally seeded by --config."""
     project_root = getattr(args, "project_root", "") or ""
     allow_bash = getattr(args, "allow_bash", True)
+    trust_level = getattr(args, "trust", "ask")
 
     strategy = _load_strategy_config(getattr(args, "config", None))
     if strategy is not None:
@@ -77,6 +78,7 @@ def _build_run_config(args: argparse.Namespace) -> RunConfig:
         )
         base.project_root = project_root
         base.allow_bash = allow_bash
+        base.trust_level = trust_level
         return base
     return RunConfig(
         max_steps=args.max_steps,
@@ -85,6 +87,7 @@ def _build_run_config(args: argparse.Namespace) -> RunConfig:
         goal_reached_token=getattr(args, "goal_reached_token", None),
         project_root=project_root,
         allow_bash=allow_bash,
+        trust_level=trust_level,
     )
 
 
@@ -250,6 +253,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--model",
         default=None,
         help="Override default model for the provider.",
+    )
+    shared.add_argument(
+        "--trust",
+        choices=["ask", "auto-edit", "yolo"],
+        default="ask",
+        help="Trust level: ask (confirm all), auto-edit (auto file ops), "
+        "yolo (no confirmation).",
     )
     shared.add_argument("--max-steps", type=int, default=8, metavar="N")
     shared.add_argument("--snapshot-dir", default=None, metavar="DIR")

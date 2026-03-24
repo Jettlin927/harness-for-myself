@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal
 
 ActionType = Literal["tool_call", "final_response"]
+TrustLevel = Literal["ask", "auto-edit", "yolo"]
 
 
 @dataclass
