@@ -54,9 +54,12 @@ smoke:
 test:
 	"$(VENV_PYTHON)" -m unittest discover -s tests -p "test_*.py"
 
-check: lint smoke test
+fmtcheck:
+	$(RUFF) format --check .
 
-fullcheck: lint typecheck smoke test
+check: lint fmtcheck smoke test
+
+fullcheck: lint fmtcheck typecheck smoke test
 
 run:
 	@if [ -z "$(GOAL)" ]; then echo "Usage: make run GOAL='please add numbers'"; exit 1; fi
