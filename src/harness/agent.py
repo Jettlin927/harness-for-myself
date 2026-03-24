@@ -50,9 +50,9 @@ class RunConfig:
             is permitted to write into. An empty tuple disables the tool.
     """
 
-    max_steps: int = 8
+    max_steps: int = 20
     log_dir: str = "logs"
-    max_history_turns: int = 8
+    max_history_turns: int = 20
     schema_retry_limit: int = 1
     max_budget: int | None = None
     max_failures: int | None = 3

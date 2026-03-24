@@ -4,6 +4,8 @@ from typing import Any, Dict, List
 
 from .types import TurnRecord
 
+_MAX_OBSERVATION_CHARS = 2000
+
 
 class MemoryManager:
     """Manages the working memory window sent to the LLM each turn.
@@ -40,8 +42,8 @@ class MemoryManager:
             {
                 "turn": t.turn,
                 "action": t.llm_action,
-                "observation": t.observation,
-                "tool_result": t.tool_result,
+                "observation": _truncate_str(t.observation, _MAX_OBSERVATION_CHARS),
+                "tool_result": _truncate_tool_result(t.tool_result),
             }
             for t in recent_turns
         ]
@@ -116,3 +118,37 @@ class MemoryManager:
                     seen.add(value)
                     values.append(value)
         return values
+
+
+def _truncate_str(text: str, limit: int) -> str:
+    """Truncate *text* to *limit* characters, appending a marker if cut."""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"\n[observation truncated at {limit} chars]"
+
+
+def _truncate_tool_result(result: Any) -> Any:
+    """Return a shallow copy of *result* with long string fields truncated."""
+    if not isinstance(result, dict):
+        return result
+
+    result = dict(result)  # shallow copy to avoid mutating the original
+    output = result.get("output")
+
+    if isinstance(output, dict):
+        # read_file returns {"content": "..."} — truncate that inner value
+        if "content" in output and isinstance(output["content"], str):
+            if len(output["content"]) > _MAX_OBSERVATION_CHARS:
+                output = dict(output)
+                output["content"] = (
+                    output["content"][:_MAX_OBSERVATION_CHARS]
+                    + f"\n[observation truncated at {_MAX_OBSERVATION_CHARS} chars]"
+                )
+                result["output"] = output
+    elif isinstance(output, str) and len(output) > _MAX_OBSERVATION_CHARS:
+        result["output"] = (
+            output[:_MAX_OBSERVATION_CHARS]
+            + f"\n[observation truncated at {_MAX_OBSERVATION_CHARS} chars]"
+        )
+
+    return result

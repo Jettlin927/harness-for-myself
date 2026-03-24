@@ -51,5 +51,77 @@ class MemoryManagerTests(unittest.TestCase):
         self.assertIn("turn 10: obs-10", memory.summary)
 
 
+    def test_long_observation_truncated(self) -> None:
+        """Observations exceeding _MAX_OBSERVATION_CHARS are truncated."""
+        long_obs = "x" * 3000
+        turns = [make_turn(1, long_obs)]
+        memory = MemoryManager(max_history_turns=5)
+        wm = memory.build_working_memory("goal", {}, turns)
+        obs = wm["history"][0]["observation"]
+        self.assertTrue(obs.endswith("[observation truncated at 2000 chars]"))
+        # The first 2000 chars should be preserved
+        self.assertTrue(obs.startswith("x" * 2000))
+
+    def test_short_observation_not_truncated(self) -> None:
+        """Observations within the limit are returned unchanged."""
+        short_obs = "hello world"
+        turns = [make_turn(1, short_obs)]
+        memory = MemoryManager(max_history_turns=5)
+        wm = memory.build_working_memory("goal", {}, turns)
+        self.assertEqual(wm["history"][0]["observation"], short_obs)
+
+    def test_tool_result_output_string_truncated(self) -> None:
+        """tool_result with a long string output is truncated."""
+        tr = TurnRecord(
+            turn=1,
+            goal="demo",
+            working_memory={},
+            llm_raw_output={},
+            llm_action={"type": "tool_call"},
+            tool_result={"ok": True, "output": "y" * 3000, "error": None},
+            observation="ok",
+        )
+        memory = MemoryManager(max_history_turns=5)
+        wm = memory.build_working_memory("goal", {}, [tr])
+        output = wm["history"][0]["tool_result"]["output"]
+        self.assertIn("[observation truncated at 2000 chars]", output)
+        self.assertTrue(output.startswith("y" * 2000))
+
+    def test_tool_result_read_file_content_truncated(self) -> None:
+        """tool_result with output.content (read_file style) is truncated."""
+        tr = TurnRecord(
+            turn=1,
+            goal="demo",
+            working_memory={},
+            llm_raw_output={},
+            llm_action={"type": "tool_call"},
+            tool_result={
+                "ok": True,
+                "output": {"content": "z" * 3000},
+                "error": None,
+            },
+            observation="ok",
+        )
+        memory = MemoryManager(max_history_turns=5)
+        wm = memory.build_working_memory("goal", {}, [tr])
+        content = wm["history"][0]["tool_result"]["output"]["content"]
+        self.assertIn("[observation truncated at 2000 chars]", content)
+
+    def test_tool_result_not_dict_unchanged(self) -> None:
+        """Non-dict tool_result is returned as-is."""
+        tr = TurnRecord(
+            turn=1,
+            goal="demo",
+            working_memory={},
+            llm_raw_output={},
+            llm_action={"type": "tool_call"},
+            tool_result="plain string result",
+            observation="ok",
+        )
+        memory = MemoryManager(max_history_turns=5)
+        wm = memory.build_working_memory("goal", {}, [tr])
+        self.assertEqual(wm["history"][0]["tool_result"], "plain string result")
+
+
 if __name__ == "__main__":
     unittest.main()

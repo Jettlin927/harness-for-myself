@@ -106,9 +106,11 @@ class AnthropicLLM(BaseLLM):
             action = turn.get("action", {})
             action_type = action.get("action_type")
 
+            turn_num = turn.get("turn", 0)
+
             if action_type == "tool_call":
                 # Assistant decided to call a tool
-                assistant_content = json.dumps(
+                assistant_content = f"[Step {turn_num}] " + json.dumps(
                     {
                         "tool_name": action.get("tool_name"),
                         "arguments": action.get("arguments"),
@@ -133,7 +135,10 @@ class AnthropicLLM(BaseLLM):
                 if messages and messages[-1]["role"] == "assistant":
                     messages.append({"role": "user", "content": "Acknowledged. Continue."})
                 messages.append(
-                    {"role": "assistant", "content": action.get("content") or ""}
+                    {
+                        "role": "assistant",
+                        "content": f"[Step {turn_num}] " + (action.get("content") or ""),
+                    }
                 )
 
         # If history was non-empty and last message is assistant, add continuation prompt

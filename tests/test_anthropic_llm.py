@@ -420,7 +420,7 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
         msgs = AnthropicLLM._build_messages(wm)
         # user, assistant (final_response), user (continuation)
         self.assertEqual(msgs[1]["role"], "assistant")
-        self.assertEqual(msgs[1]["content"], "I finished.")
+        self.assertEqual(msgs[1]["content"], "[Step 1] I finished.")
         self.assertEqual(msgs[2]["role"], "user")
         self.assertIn("Continue", msgs[2]["content"])
 
@@ -547,6 +547,61 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
         self.assertEqual(parsed["output"]["content"], "hello")
         # Should NOT contain Python-style repr markers
         self.assertNotIn("{'content':", content)
+
+
+class TestTurnNumberInjection(unittest.TestCase):
+    """Test that _build_messages injects [Step N] prefix into assistant messages."""
+
+    def test_tool_call_has_step_prefix(self) -> None:
+        wm = {
+            "goal": "test",
+            "context": {},
+            "summary_memory": "",
+            "history": [
+                {
+                    "turn": 3,
+                    "action": {
+                        "action_type": "tool_call",
+                        "tool_name": "read_file",
+                        "arguments": {"path": "/tmp/a.py"},
+                    },
+                    "observation": "ok",
+                    "tool_result": {"ok": True, "output": "content", "error": None},
+                },
+            ],
+        }
+        msgs = AnthropicLLM._build_messages(wm)
+        assistant_msgs = [m for m in msgs if m["role"] == "assistant"]
+        self.assertTrue(len(assistant_msgs) > 0)
+        self.assertTrue(
+            assistant_msgs[0]["content"].startswith("[Step 3]"),
+            f"Expected '[Step 3]' prefix, got: {assistant_msgs[0]['content'][:30]}",
+        )
+
+    def test_final_response_has_step_prefix(self) -> None:
+        wm = {
+            "goal": "test",
+            "context": {},
+            "summary_memory": "",
+            "history": [
+                {
+                    "turn": 5,
+                    "action": {
+                        "action_type": "final_response",
+                        "content": "All done.",
+                    },
+                    "observation": "",
+                    "tool_result": None,
+                },
+            ],
+        }
+        msgs = AnthropicLLM._build_messages(wm)
+        assistant_msgs = [m for m in msgs if m["role"] == "assistant"]
+        self.assertTrue(len(assistant_msgs) > 0)
+        self.assertTrue(
+            assistant_msgs[0]["content"].startswith("[Step 5]"),
+            f"Expected '[Step 5]' prefix, got: {assistant_msgs[0]['content'][:30]}",
+        )
 
 
 class TestAnthropicLLMImportError(unittest.TestCase):
