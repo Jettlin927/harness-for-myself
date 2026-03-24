@@ -110,3 +110,10 @@
 - `step1-execution-log.md`: Step 1 implementation and verification baseline.
 - `step2-reliability-layer.md`: Step 2 reliability layer — completed.
 - Step 3 全部完成：eval runner ✅、benchmark suite ✅、命令行报表 ✅、versioned configs ✅（`src/harness/config.py` + `configs/default.json` + `harness eval --config`）。
+
+## 后续演进
+三步计划已全部完成。项目正在向"编程 Agent 工具"方向演进，详见 `evolution-roadmap.md`：
+- Phase 1 ✅ 编程工具（read_file/edit_file/bash + TUI 确认）
+- Phase 2 ✅ Anthropic 原生 tool_use + CLI --provider/--model + token 预算
+- Phase 3 ⬜ 流式输出 + 权限系统
+- Phase 4 ⬜ 项目上下文感知

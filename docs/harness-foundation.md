@@ -54,6 +54,7 @@ To keep the loop stable, always include:
 
 ## Linked Docs
 - `harness-3-step-plan.md`: phased build plan with scope, deliverables, and acceptance criteria.
+- `evolution-roadmap.md`: Phase 1–4 演进路线图（coding tools → Anthropic tool_use → streaming/permissions → project context）。
 - `step1-execution-log.md`: Step 1 implementation baseline and verification notes.
 - `step2-reliability-layer.md`: Step 2 reliability decisions, guardrails, and verification notes.
 - `uv-local-setup.md`: local Python/venv setup and run commands with `uv`.

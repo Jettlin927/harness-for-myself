@@ -23,7 +23,8 @@
 
 ## 验证结果
 - 测试命令：`python3 -m unittest discover -s tests -p "test_*.py"`
-- 结果：`Ran 33 tests ... OK`
+- Step 2 完成时：`Ran 33 tests ... OK`
+- 当前（Phase 2 完成后）：`Ran 76 tests ... OK`
 
 ## 当前实现约定
 - budget 采用轻量计数：每次 LLM 生成算 1，每次工具执行尝试算 1
@@ -31,7 +32,7 @@
 - 危险工具幂等防护按 `tool_name + sorted(arguments)` 指纹判断重复
 - 快照默认落在 `snapshot_dir`，未配置时回落到 `log_dir`
 
-## 留给 Step 3
-- 指数退避和更细粒度的 retry policy 仍未引入
-- 快照恢复目前只恢复 harness 状态，不恢复外部工具副作用
-- budget 还是本地抽象值，不是真实 token / cost 计量
+## 留给 Step 3 — 进展更新
+- 指数退避和更细粒度的 retry policy 仍未引入 — ⬜ 暂不需要，当前重试策略够用
+- 快照恢复目前只恢复 harness 状态，不恢复外部工具副作用 — ⬜ 保持现状
+- ~~budget 还是本地抽象值，不是真实 token / cost 计量~~ → ✅ Phase 2 已实现 `max_tokens_budget`，从 LLM 响应中提取真实 token 用量累计，超限以 `token_budget_exceeded` 停止

@@ -103,25 +103,22 @@
 - `HarnessAgent`
 - `RunConfig`
 - `DeepSeekLLM`
-- 若后续扩展工具系统，再暴露清晰的 tool registration API
+- `AnthropicLLM`（optional，需 `hau[anthropic]`）
+- `ToolDispatcher.register_tool()` + `get_tool_schemas()` — 工具注册与 schema 导出 API
 
-### 方案 C：把 provider 做成可插拔
+### 方案 C：把 provider 做成可插拔 ✅ 已落地
 
-当前仓库已经出现了 `RuleBasedLLM` 和 `DeepSeekLLM` 两类入口，这是很好的分发基础。
+现在仓库已有 `RuleBasedLLM`、`DeepSeekLLM`、`AnthropicLLM` 三个 provider：
 
-为了后续更方便推广，建议继续坚持：
+- 核心 loop 不绑定具体模型厂商 ✅
+- provider 只是实现统一 `BaseLLM.generate(...)` 接口 ✅
+- CLI 通过 `--provider deepseek|anthropic` 切换 ✅
+- Anthropic 作为 optional dependency：`pip install hau[anthropic]` ✅
 
-- 核心 loop 不绑定具体模型厂商
-- provider 只是实现统一 `generate(...)` 接口
-- README 把“本地 stub / DeepSeek / future providers”区分清楚
+extras 结构已就位：
 
-这样后续可以自然演进为：
-
-- `harness[deepseek]`
-- `harness[openai]`
-- `harness[dev]`
-
-即使现在还不做 extras，结构上也要朝这个方向设计。
+- `hau[anthropic]` — Anthropic Claude 支持
+- `hau[dev]` — 开发依赖（pytest）
 
 ## 分发友好的最小落地清单
 

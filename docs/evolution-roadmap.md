@@ -10,7 +10,7 @@
 
 ---
 
-## Phase 1：编程工具（让 agent 能操作代码）
+## Phase 1：编程工具（让 agent 能操作代码） ✅ 已完成
 
 ### 边界
 - **输入：** 当前只有 echo/add/utc_now/write_text_file 四个玩具工具
@@ -45,7 +45,7 @@
 
 ---
 
-## Phase 2：原生 Tool Use + 单 Provider 升级
+## Phase 2：原生 Tool Use + 单 Provider 升级 ✅ 已完成
 
 ### 边界
 - **输入：** LLM 返回 JSON-in-content，由 schema.py 手动解析
@@ -169,13 +169,13 @@
 ## 阶段依赖 & 里程碑
 
 ```
-Phase 1 (编程工具)     → 里程碑：agent 能读一个 Python 文件、找到 bug、用 edit_file 修复
+Phase 1 (编程工具)     ✅ 完成 → coding_tools.py + TUI 确认 + CLI --project-root
     ↓
-Phase 2 (原生 tool_use) → 里程碑：用 Claude API 完成一个真实编程任务（如写一个函数+测试）
+Phase 2 (原生 tool_use) ✅ 完成 → AnthropicLLM + tool schema + --provider/--model + token budget
     ↓
-Phase 3 (流式+权限)     → 里程碑：交互体验接近 Claude Code（实时输出、安全确认）
+Phase 3 (流式+权限)     ⬜ 下一步 → 流式渲染 + ask/auto-edit/yolo 三级信任
     ↓
-Phase 4 (项目感知)      → 里程碑：agent 进入项目目录后自动理解项目结构和约定
+Phase 4 (项目感知)      ⬜ 待做 → .hau/CONTEXT.md + git 状态注入 + 项目类型检测
 ```
 
 **Phase 1 和 Phase 2 可以有限并行：** coding_tools.py 和 anthropic_llm.py 没有代码依赖，但 Phase 2 完成后需要集成测试（用 Claude 调编程工具）。

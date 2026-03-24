@@ -12,9 +12,9 @@
 ```bash
 make chat LLM=deepseek
 # 或
-./.venv/bin/python scripts/run_chat.py --llm deepseek
-# 或
 harness chat --llm deepseek --api-key sk-...
+# 或
+harness chat --provider deepseek --model deepseek-chat
 ```
 
 单次运行：
@@ -22,8 +22,10 @@ harness chat --llm deepseek --api-key sk-...
 ```bash
 make run-deepseek GOAL="帮我写一首诗并保存到本地 txt"
 # 或
-./.venv/bin/python scripts/run_deepseek.py "帮我写一首诗并保存到本地 txt"
+harness run "帮我写一首诗并保存到本地 txt" --provider deepseek
 ```
+
+> **注意**：`--provider` 参数是新增的统一 provider 选择方式，同时兼容旧的 `--llm deepseek` 用法。另外也可通过 `--provider anthropic` 切换到 Anthropic Claude API（需安装 `pip install hau[anthropic]`）。
 
 ## API key 解析顺序
 1. `--api-key`
@@ -33,12 +35,12 @@ make run-deepseek GOAL="帮我写一首诗并保存到本地 txt"
 
 ## 当前实现说明
 - 使用 DeepSeek 的 OpenAI-compatible Chat Completions 风格接口
-- 默认模型：`deepseek-chat`
+- 默认模型：`deepseek-chat`（可通过 `--model` 覆盖）
 - `DeepSeekLLM` 会要求模型只返回 harness 需要的 JSON 结构
 - 如果模型返回普通文本而不是 JSON，当前实现会保底包成 `final_response`
 - 如果是通过交互输入拿到 key，程序会自动把它写回项目根目录 `.env`
-- 当前默认开放的本地写入目录是 `~/Desktop/test`
-- DeepSeek 入口会把 `allowed_write_dir` 和保存提示放进运行上下文，方便模型主动调用 `write_text_file`
+- 当 `--project-root` 指定时，会自动注册编程工具（read_file、edit_file、bash），system prompt 中会包含这些工具的签名描述
+- 敏感工具（bash、edit_file、write_text_file）在交互模式下执行前会弹出 y/n 确认提示
 
 ## 注意
 - 首次真实调用需要网络可用
