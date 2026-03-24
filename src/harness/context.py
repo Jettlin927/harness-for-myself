@@ -37,6 +37,17 @@ def load_project_context(root: Path) -> dict[str, Any]:
         if memory_str:
             ctx["project_memory"] = memory_str
 
+    # Agent and skill definitions
+    from .definitions import load_agent_definitions, load_skill_definitions
+
+    hau_dir = root / ".hau"
+    agents = load_agent_definitions(hau_dir)
+    skills = load_skill_definitions(hau_dir)
+    if agents:
+        ctx["available_agents"] = [{"name": a.name, "description": a.description} for a in agents]
+    if skills:
+        ctx["available_skills"] = [{"name": s.name, "description": s.description} for s in skills]
+
     return ctx
 
 

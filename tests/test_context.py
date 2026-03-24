@@ -278,5 +278,60 @@ class TestLoadProjectContext(unittest.TestCase):
             self.assertTrue(ctx["project_type"].get("has_makefile"))
 
 
+class TestAgentSkillDiscovery(unittest.TestCase):
+    """Tests for agent/skill definition discovery in load_project_context."""
+
+    def _make_agent_md(self, agents_dir: Path, filename: str, name: str, desc: str) -> None:
+        """Helper to write a minimal agent .md file with frontmatter."""
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        (agents_dir / filename).write_text(
+            f"---\nname: {name}\ndescription: {desc}\n---\nBody here.\n",
+            encoding="utf-8",
+        )
+
+    def _make_skill_md(self, skills_dir: Path, filename: str, name: str, desc: str) -> None:
+        """Helper to write a minimal skill .md file with frontmatter."""
+        skills_dir.mkdir(parents=True, exist_ok=True)
+        (skills_dir / filename).write_text(
+            f"---\nname: {name}\ndescription: {desc}\n---\nSkill body.\n",
+            encoding="utf-8",
+        )
+
+    def test_load_discovers_agent_definitions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hau = root / ".hau"
+            self._make_agent_md(hau / "agents", "test-runner.md", "test-runner", "Run tests")
+
+            ctx = load_project_context(root)
+
+            self.assertIn("available_agents", ctx)
+            self.assertEqual(len(ctx["available_agents"]), 1)
+            self.assertEqual(ctx["available_agents"][0]["name"], "test-runner")
+            self.assertEqual(ctx["available_agents"][0]["description"], "Run tests")
+
+    def test_load_discovers_skill_definitions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hau = root / ".hau"
+            self._make_skill_md(hau / "skills", "review.md", "review", "Code review helper")
+
+            ctx = load_project_context(root)
+
+            self.assertIn("available_skills", ctx)
+            self.assertEqual(len(ctx["available_skills"]), 1)
+            self.assertEqual(ctx["available_skills"][0]["name"], "review")
+            self.assertEqual(ctx["available_skills"][0]["description"], "Code review helper")
+
+    def test_no_hau_agents_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            ctx = load_project_context(root)
+
+            self.assertNotIn("available_agents", ctx)
+            self.assertNotIn("available_skills", ctx)
+
+
 if __name__ == "__main__":
     unittest.main()
