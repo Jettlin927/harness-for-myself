@@ -124,6 +124,107 @@ class TestAnthropicLLMToolUse(unittest.TestCase):
         self.assertNotIn("tools", call_kwargs.kwargs)
 
 
+class TestAnthropicLLMStreaming(unittest.TestCase):
+    """Test streaming token output via on_token callback."""
+
+    @patch("src.harness.anthropic_llm.anthropic")
+    def test_on_token_triggers_streaming_path(
+        self, mock_anthropic: MagicMock,
+    ) -> None:
+        """When on_token is set, generate() uses _generate_streaming."""
+        mock_client = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_client
+
+        # Set up the stream context manager mock
+        mock_stream_ctx = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream_ctx.__enter__ = MagicMock(return_value=mock_stream)
+        mock_stream_ctx.__exit__ = MagicMock(return_value=False)
+        mock_client.messages.stream.return_value = mock_stream_ctx
+
+        # Stream yields text delta events
+        delta = MagicMock()
+        delta.text = "Hello"
+        event = MagicMock()
+        event.type = "content_block_delta"
+        event.delta = delta
+        mock_stream.__iter__ = MagicMock(return_value=iter([event]))
+
+        final_msg = FakeResponse(
+            content=[FakeTextBlock(text="Hello world")],
+        )
+        mock_stream.get_final_message.return_value = final_msg
+
+        tokens: list[str] = []
+        llm = AnthropicLLM(api_key="test-key")
+        llm.on_token = lambda t: tokens.append(t)
+        result = llm.generate({"goal": "greet", "history": []})
+
+        # Verify streaming path was used (not .create)
+        mock_client.messages.stream.assert_called_once()
+        mock_client.messages.create.assert_not_called()
+        self.assertEqual(tokens, ["Hello"])
+        self.assertEqual(result["type"], "final_response")
+        self.assertEqual(result["content"], "Hello world")
+
+    @patch("src.harness.anthropic_llm.anthropic")
+    def test_no_on_token_uses_create(
+        self, mock_anthropic: MagicMock,
+    ) -> None:
+        """When on_token is None, generate() uses messages.create."""
+        mock_client = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_client
+        mock_client.messages.create.return_value = FakeResponse(
+            content=[FakeTextBlock(text="hi")],
+        )
+
+        llm = AnthropicLLM(api_key="test-key")
+        # on_token defaults to None via BaseLLM.__init__
+        result = llm.generate({"goal": "greet", "history": []})
+
+        mock_client.messages.create.assert_called_once()
+        mock_client.messages.stream.assert_not_called()
+        self.assertEqual(result["type"], "final_response")
+
+    @patch("src.harness.anthropic_llm.anthropic")
+    def test_streaming_tool_use_no_text_tokens(
+        self, mock_anthropic: MagicMock,
+    ) -> None:
+        """Tool-use responses may emit no text deltas."""
+        mock_client = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_client
+
+        mock_stream_ctx = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream_ctx.__enter__ = MagicMock(return_value=mock_stream)
+        mock_stream_ctx.__exit__ = MagicMock(return_value=False)
+        mock_client.messages.stream.return_value = mock_stream_ctx
+
+        # Only a content_block_start for tool_use, no text deltas
+        event = MagicMock()
+        event.type = "content_block_start"
+        event.content_block = FakeToolUseBlock(
+            name="bash", input={"command": "ls"},
+        )
+        mock_stream.__iter__ = MagicMock(return_value=iter([event]))
+
+        final_msg = FakeResponse(
+            content=[
+                FakeToolUseBlock(name="bash", input={"command": "ls"}),
+            ],
+        )
+        mock_stream.get_final_message.return_value = final_msg
+
+        tokens: list[str] = []
+        llm = AnthropicLLM(api_key="test-key")
+        llm.on_token = lambda t: tokens.append(t)
+        result = llm.generate({"goal": "list", "history": []})
+
+        self.assertEqual(tokens, [])
+        self.assertEqual(result["type"], "tool_call")
+        self.assertEqual(result["tool_name"], "bash")
+
+
 class TestAnthropicLLMImportError(unittest.TestCase):
     """Test that missing anthropic package raises ImportError."""
 

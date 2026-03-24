@@ -138,7 +138,8 @@ def _render_schema_error_turn(record: "TurnRecord") -> Panel:
         f"\n[dim]attempts: {attempts}[/dim]"
     )
     title_err = (
-        f"[{_STYLE_DIM}]Turn {record.turn}[/{_STYLE_DIM}]  [{_STYLE_ERR}]Schema Error[/{_STYLE_ERR}]"
+        f"[{_STYLE_DIM}]Turn {record.turn}[/{_STYLE_DIM}]  "
+        f"[{_STYLE_ERR}]Schema Error[/{_STYLE_ERR}]"
     )
     return Panel(
         body,
@@ -194,6 +195,7 @@ class InteractiveSession:
         self.agent = agent
         self.console = console or Console()
         self._status: Any = None  # rich Status object; active between turns
+        self._streaming: bool = False
         self._session_mgr = SessionManager(session_dir)
         self._session: SessionState = self._init_session(new_session)
 
@@ -228,7 +230,9 @@ class InteractiveSession:
         if existing and existing.goals_completed:
             try:
                 answer = Prompt.ask(
-                    f"[{_STYLE_DIM}]Found previous session ({len(existing.goals_completed)} goals completed). Continue?[/{_STYLE_DIM}]",
+                    f"[{_STYLE_DIM}]Found previous session "
+                    f"({len(existing.goals_completed)} goals completed). "
+                    f"Continue?[/{_STYLE_DIM}]",
                     choices=["y", "n"],
                     default="y",
                 )
@@ -243,17 +247,30 @@ class InteractiveSession:
 
     def _print_banner(self) -> None:
         goals_done = len(self._session.goals_completed)
-        session_info = (
-            f"  [{_STYLE_DIM}]Session {self._session.session_id[:8]}...  {goals_done} goals completed[/{_STYLE_DIM}]"
-            if goals_done
-            else f"  [{_STYLE_DIM}]New session {self._session.session_id[:8]}...[/{_STYLE_DIM}]"
-        )
+        sid = self._session.session_id[:8]
+        if goals_done:
+            session_info = (
+                f"  [{_STYLE_DIM}]Session {sid}...  "
+                f"{goals_done} goals completed[/{_STYLE_DIM}]"
+            )
+        else:
+            session_info = (
+                f"  [{_STYLE_DIM}]New session {sid}...[/{_STYLE_DIM}]"
+            )
+        yolo_warn = ""
+        if self.agent.config.trust_level == "yolo":
+            yolo_warn = (
+                "\n  [bold red]⚠ YOLO mode: all operations execute "
+                "without confirmation[/bold red]"
+            )
         self.console.print()
         self.console.print(
             Panel.fit(
                 f"[{_STYLE_HEADER}]HAU[/{_STYLE_HEADER}]  "
-                f"[{_STYLE_DIM}]v0.1.0  •  Enter a goal to chat, Ctrl+C or exit to quit[/{_STYLE_DIM}]"
-                + session_info,
+                f"[{_STYLE_DIM}]v0.1.0  •  Enter a goal to chat, "
+                f"Ctrl+C or exit to quit[/{_STYLE_DIM}]"
+                + session_info
+                + yolo_warn,
                 border_style="cyan",
                 padding=(0, 2),
             )
@@ -270,6 +287,12 @@ class InteractiveSession:
             return None
         return goal
 
+    def _on_token(self, token: str) -> None:
+        """Print streaming tokens directly to console."""
+        self._stop_status()
+        self.console.print(token, end="", highlight=False)
+        self._streaming = True
+
     def _run_goal(self, goal: str) -> None:
         self.console.print()
         t0 = time.monotonic()
@@ -280,14 +303,20 @@ class InteractiveSession:
             context["session_history"] = self._session.accumulated_summary
 
         # Start spinner for the first LLM call
+        self._streaming = False
         self._start_status("Thinking...")
 
         def on_turn(record: "TurnRecord") -> None:
-            # Stop spinner, render the completed turn, restart for next turn
+            if self._streaming:
+                self.console.print()  # newline after streaming output
+                self._streaming = False
             self._stop_status()
             self.console.print(render_turn(record))
 
-            action_type = record.llm_action.get("action_type") or record.llm_action.get("type", "")
+            action_type = (
+                record.llm_action.get("action_type")
+                or record.llm_action.get("type", "")
+            )
             if action_type == "tool_call":
                 self._start_status("Thinking...")
 
@@ -297,6 +326,7 @@ class InteractiveSession:
                 context=context,
                 on_turn=on_turn,
                 on_approve=self._approve_tool,
+                on_token=self._on_token,
             )
         except KeyboardInterrupt:
             self._stop_status()

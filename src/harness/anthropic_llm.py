@@ -23,6 +23,7 @@ class AnthropicLLM(BaseLLM):
         model: str = "claude-sonnet-4-20250514",
         tool_schemas: list[dict[str, Any]] | None = None,
     ) -> None:
+        super().__init__()
         if anthropic is None:
             raise ImportError(
                 "The 'anthropic' package is required. "
@@ -47,8 +48,25 @@ class AnthropicLLM(BaseLLM):
         if self.tool_schemas:
             kwargs["tools"] = self.tool_schemas
 
+        if self.on_token:
+            return self._generate_streaming(kwargs)
+
         response = self._client.messages.create(**kwargs)
         return self._parse_response(response)
+
+    def _generate_streaming(
+        self, kwargs: dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Stream tokens via on_token callback, return parsed final response."""
+        with self._client.messages.stream(**kwargs) as stream:
+            for event in stream:
+                if event.type == "content_block_delta":
+                    delta = event.delta
+                    if hasattr(delta, "text") and self.on_token:
+                        self.on_token(delta.text)
+
+            final_message = stream.get_final_message()
+        return self._parse_response(final_message)
 
     @staticmethod
     def _build_messages(

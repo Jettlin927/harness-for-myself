@@ -4,7 +4,7 @@ import json
 import os
 from getpass import getpass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -27,6 +27,9 @@ class BaseLLM:
 
     Subclass this and implement :meth:`generate` to plug in any language model.
     """
+
+    def __init__(self) -> None:
+        self.on_token: Callable[[str], None] | None = None
 
     def generate(self, working_memory: Dict[str, Any]) -> Dict[str, Any]:
         """Generate the next agent action.
@@ -52,6 +55,7 @@ class ScriptedLLM(BaseLLM):
     """Deterministic LLM stub for testing the harness loop."""
 
     def __init__(self, script: List[Dict[str, Any]]) -> None:
+        super().__init__()
         self._script = script
         self._index = 0
 
@@ -115,6 +119,7 @@ class DeepSeekLLM(BaseLLM):
         env_path: str | Path | None = None,
         transport: Any | None = None,
     ) -> None:
+        super().__init__()
         self.api_key = api_key
         self.model = model
         self.base_url = base_url.rstrip("/")

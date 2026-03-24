@@ -64,6 +64,7 @@ class RunConfig:
     project_root: str = ""
     allow_bash: bool = True
     max_tokens_budget: int | None = None
+    trust_level: str = "ask"
 
 
 class HarnessAgent:
@@ -109,6 +110,7 @@ class HarnessAgent:
         resume_from: str | None = None,
         on_turn: Callable[["TurnRecord"], None] | None = None,
         on_approve: Callable[[str, str, Dict[str, Any]], bool] | None = None,
+        on_token: Callable[[str], None] | None = None,
     ) -> RunResult:
         """Run the agent loop until a stop condition is met.
 
@@ -120,11 +122,14 @@ class HarnessAgent:
             on_turn: Optional callback invoked after each turn is recorded.
                 Receives the completed :class:`~harness.types.TurnRecord`.
                 Useful for streaming live output to a UI.
+            on_token: Optional callback for streaming token output. Each
+                token string is passed as it arrives from the LLM.
 
         Returns:
             A :class:`~harness.types.RunResult` with the final response, full
             turn history, stop reason, log path, and latest snapshot path.
         """
+        self.llm.on_token = on_token
         state = self._load_state(goal=goal, context=context or {}, resume_from=resume_from)
         goal = state["goal"]
         context = state["context"]
@@ -392,6 +397,16 @@ class HarnessAgent:
         "bash", "edit_file", "write_text_file",
     })
 
+    def _needs_approval(self, tool_name: str) -> bool:
+        """Determine if a tool call needs user approval based on trust level."""
+        trust = self.config.trust_level
+        if trust == "yolo":
+            return False
+        if trust == "auto-edit":
+            return tool_name == "bash"
+        # trust == "ask": all sensitive tools need approval
+        return tool_name in self._APPROVAL_REQUIRED_TOOLS
+
     def _execute_tool_call(
         self,
         *,
@@ -400,7 +415,7 @@ class HarnessAgent:
         dangerous_tool_signatures: List[str],
         on_approve: Callable[[str, str, Dict[str, Any]], bool] | None = None,
     ) -> ToolExecutionResult:
-        if on_approve and tool_name in self._APPROVAL_REQUIRED_TOOLS:
+        if on_approve and self._needs_approval(tool_name):
             desc = self._describe_tool_call(tool_name, arguments)
             if not on_approve(tool_name, desc, arguments):
                 return ToolExecutionResult(
