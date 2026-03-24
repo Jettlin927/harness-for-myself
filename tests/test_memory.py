@@ -39,16 +39,17 @@ class MemoryManagerTests(unittest.TestCase):
 
     def test_maybe_compress_boundary_does_not_compress_at_limit(self) -> None:
         memory = MemoryManager(max_history_turns=3)
-        turns = [make_turn(i, f"obs-{i}") for i in range(1, 13)]
+        # Dynamic threshold = max_history_turns + 4 = 7; 7 turns should NOT trigger
+        turns = [make_turn(i, f"obs-{i}") for i in range(1, 8)]
         self.assertFalse(memory.maybe_compress(turns))
         self.assertEqual(memory.summary, "")
 
     def test_maybe_compress_updates_summary_after_limit(self) -> None:
         memory = MemoryManager(max_history_turns=3)
-        turns = [make_turn(i, f"obs-{i}") for i in range(1, 14)]
+        # Dynamic threshold = 7; 8 turns should trigger compression
+        turns = [make_turn(i, f"obs-{i}") for i in range(1, 9)]
         self.assertTrue(memory.maybe_compress(turns))
-        self.assertIn("turn 7: obs-7", memory.summary)
-        self.assertIn("turn 10: obs-10", memory.summary)
+        self.assertIn("turn 5: obs-5", memory.summary)
 
 
     def test_long_observation_truncated(self) -> None:

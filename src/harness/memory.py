@@ -55,7 +55,9 @@ class MemoryManager:
             "history": history,
         }
 
-    def maybe_compress(self, turns: List[TurnRecord], max_total_turns: int = 12) -> bool:
+    def maybe_compress(self, turns: List[TurnRecord], max_total_turns: int | None = None) -> bool:
+        if max_total_turns is None:
+            max_total_turns = self.max_history_turns + 4
         if len(turns) <= max_total_turns:
             return False
 

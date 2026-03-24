@@ -369,7 +369,7 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
         self.assertIn("Summary: Previously read file a.py", msgs[0]["content"])
         self.assertIn("Context:", msgs[0]["content"])
 
-    def test_tool_call_history_produces_assistant_and_user(self) -> None:
+    def test_tool_call_history_produces_tool_use_and_result(self) -> None:
         wm = {
             "goal": "read file",
             "context": {},
@@ -391,11 +391,18 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
 
         # First msg: user with goal
         self.assertEqual(msgs[0]["role"], "user")
-        # Second msg: assistant with tool call info
+        # Second msg: assistant with native tool_use block
         self.assertEqual(msgs[1]["role"], "assistant")
-        self.assertIn("read_file", msgs[1]["content"])
-        # Third msg: user with tool result
+        self.assertIsInstance(msgs[1]["content"], list)
+        tool_block = msgs[1]["content"][1]
+        self.assertEqual(tool_block["type"], "tool_use")
+        self.assertEqual(tool_block["name"], "read_file")
+        self.assertEqual(tool_block["id"], "toolu_history_1")
+        # Third msg: user with native tool_result block
         self.assertEqual(msgs[2]["role"], "user")
+        self.assertIsInstance(msgs[2]["content"], list)
+        self.assertEqual(msgs[2]["content"][0]["type"], "tool_result")
+        self.assertEqual(msgs[2]["content"][0]["tool_use_id"], "toolu_history_1")
         # Verify alternating roles
         for i in range(1, len(msgs)):
             self.assertNotEqual(msgs[i]["role"], msgs[i - 1]["role"])
@@ -533,12 +540,15 @@ class TestMultiTurnMessagesFormat(unittest.TestCase):
             ],
         }
         msgs = AnthropicLLM._build_messages(wm)
-        # Find the user message with tool result (not the first goal message)
+        # Find the user message with tool_result block
         tool_result_msgs = [
-            m for m in msgs if m["role"] == "user" and "ok" in str(m["content"])
+            m for m in msgs
+            if m["role"] == "user" and isinstance(m["content"], list)
         ]
         self.assertTrue(len(tool_result_msgs) > 0, "No tool result message found")
-        content = tool_result_msgs[0]["content"]
+        block = tool_result_msgs[0]["content"][0]
+        self.assertEqual(block["type"], "tool_result")
+        content = block["content"]
         # Should be valid JSON
         import json
 
@@ -573,10 +583,12 @@ class TestTurnNumberInjection(unittest.TestCase):
         msgs = AnthropicLLM._build_messages(wm)
         assistant_msgs = [m for m in msgs if m["role"] == "assistant"]
         self.assertTrue(len(assistant_msgs) > 0)
-        self.assertTrue(
-            assistant_msgs[0]["content"].startswith("[Step 3]"),
-            f"Expected '[Step 3]' prefix, got: {assistant_msgs[0]['content'][:30]}",
-        )
+        # tool_call assistant content is a list: [text_block, tool_use_block]
+        content = assistant_msgs[0]["content"]
+        self.assertIsInstance(content, list)
+        text_block = content[0]
+        self.assertEqual(text_block["type"], "text")
+        self.assertEqual(text_block["text"], "[Step 3]")
 
     def test_final_response_has_step_prefix(self) -> None:
         wm = {

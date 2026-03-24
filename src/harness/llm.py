@@ -9,21 +9,39 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
-def build_system_prompt(tool_names: list[str]) -> str:
-    """Build the system prompt shared by all LLM backends."""
+def build_system_prompt(tool_names: list[str], *, native_tool_use: bool = False) -> str:
+    """Build the system prompt shared by all LLM backends.
+
+    Args:
+        tool_names: Names of available tools to list in the prompt.
+        native_tool_use: When True (Anthropic), omit JSON format instructions
+            since the SDK handles tool_use natively. When False (DeepSeek etc.),
+            include explicit JSON output format requirements.
+    """
     tools_desc = ", ".join(tool_names) if tool_names else "(none)"
+
+    # Output format section: only needed for non-native backends
+    if native_tool_use:
+        output_section = (
+            "## Output Format\n"
+            "Use the provided tools to accomplish the task. When you have completed the "
+            "task or need to communicate with the user, respond with a text message.\n\n"
+        )
+    else:
+        output_section = (
+            "## Output Format\n"
+            "Return exactly one JSON object per turn. Use one of these two shapes:\n"
+            '- Tool call: {"type":"tool_call","tool_name":"<tool>","arguments":{...}}\n'
+            '- Final answer: {"type":"final_response","content":"<answer>"}\n'
+            "Do not wrap JSON in markdown fences or add any text outside the JSON object.\n\n"
+        )
+
     return (
         "You are a coding agent. Your goal is to autonomously complete programming tasks "
         "given by the user. You operate inside a tool-using harness that validates your "
         "output, executes tools, and feeds results back to you.\n\n"
-        #
-        # --- Output format ---
-        #
-        "## Output Format\n"
-        "Return exactly one JSON object per turn. Use one of these two shapes:\n"
-        '- Tool call: {"type":"tool_call","tool_name":"<tool>","arguments":{...}}\n'
-        '- Final answer: {"type":"final_response","content":"<answer>"}\n'
-        "Do not wrap JSON in markdown fences or add any text outside the JSON object.\n\n"
+        + output_section
+        +
         #
         # --- Available tools ---
         #

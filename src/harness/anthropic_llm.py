@@ -39,7 +39,7 @@ class AnthropicLLM(BaseLLM):
 
     def generate(self, working_memory: Dict[str, Any]) -> Dict[str, Any]:
         tool_names = [s["name"] for s in self.tool_schemas]
-        system_prompt = build_system_prompt(tool_names)
+        system_prompt = build_system_prompt(tool_names, native_tool_use=True)
         messages = self._build_messages(working_memory)
 
         kwargs: dict[str, Any] = {
@@ -105,41 +105,52 @@ class AnthropicLLM(BaseLLM):
         for turn in history:
             action = turn.get("action", {})
             action_type = action.get("action_type")
-
             turn_num = turn.get("turn", 0)
 
             if action_type == "tool_call":
-                # Assistant decided to call a tool
-                assistant_content = f"[Step {turn_num}] " + json.dumps(
+                tool_use_id = f"toolu_history_{turn_num}"
+                # Native Anthropic tool_use block in assistant message
+                assistant_content: Any = [
                     {
-                        "tool_name": action.get("tool_name"),
-                        "arguments": action.get("arguments"),
+                        "type": "text",
+                        "text": f"[Step {turn_num}]",
                     },
-                    ensure_ascii=False,
-                )
-                # Bug A fix: insert bridging user message if last message is also assistant
-                if messages and messages[-1]["role"] == "assistant":
-                    messages.append({"role": "user", "content": "Acknowledged. Continue."})
+                    {
+                        "type": "tool_use",
+                        "id": tool_use_id,
+                        "name": action.get("tool_name", "unknown"),
+                        "input": action.get("arguments", {}),
+                    },
+                ]
                 messages.append({"role": "assistant", "content": assistant_content})
 
-                # Bug C fix: use structured tool_result data with json.dumps
+                # Native tool_result block in user message
+                # Bug C fix: use structured JSON for tool result content
                 tool_result_data = turn.get("tool_result")
                 if tool_result_data and isinstance(tool_result_data, dict):
-                    content = json.dumps(tool_result_data, ensure_ascii=False, default=str)
+                    result_content = json.dumps(
+                        tool_result_data, ensure_ascii=False, default=str
+                    )
                 else:
-                    content = str(turn.get("observation", ""))
-                messages.append({"role": "user", "content": content})
+                    result_content = str(turn.get("observation", ""))
+
+                messages.append({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_id,
+                        "content": result_content,
+                    }],
+                })
 
             elif action_type == "final_response":
                 # Bug A fix: insert bridging user message if last message is also assistant
                 if messages and messages[-1]["role"] == "assistant":
                     messages.append({"role": "user", "content": "Acknowledged. Continue."})
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": f"[Step {turn_num}] " + (action.get("content") or ""),
-                    }
-                )
+                messages.append({
+                    "role": "assistant",
+                    "content": f"[Step {turn_num}] " + (action.get("content") or ""),
+                })
 
         # If history was non-empty and last message is assistant, add continuation prompt
         if history and messages[-1]["role"] == "assistant":
@@ -150,6 +161,7 @@ class AnthropicLLM(BaseLLM):
                     f"{json.dumps(schema_feedback, ensure_ascii=False)}\n"
                     f"Please try again."
                 )
+            # If last user message is a tool_result list, append text block to it
             messages.append({"role": "user", "content": continuation})
 
         return messages
