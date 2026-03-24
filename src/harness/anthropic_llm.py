@@ -33,6 +33,10 @@ class AnthropicLLM(BaseLLM):
         self.api_key = self._resolve_api_key(api_key)
         self._client = anthropic.Anthropic(api_key=self.api_key)
 
+    def set_tool_schemas(self, schemas: list[dict[str, Any]]) -> None:
+        """Update tool schemas after initialization."""
+        self.tool_schemas = schemas
+
     def generate(self, working_memory: Dict[str, Any]) -> Dict[str, Any]:
         tool_names = [s["name"] for s in self.tool_schemas]
         system_prompt = build_system_prompt(tool_names)
@@ -71,31 +75,116 @@ class AnthropicLLM(BaseLLM):
     @staticmethod
     def _build_messages(
         working_memory: Dict[str, Any],
-    ) -> List[Dict[str, str]]:
-        user_prompt = json.dumps(
-            working_memory,
-            ensure_ascii=False,
-            indent=2,
-        )
-        return [{"role": "user", "content": user_prompt}]
+    ) -> List[Dict[str, Any]]:
+        # Build the first user message with goal + context + summary
+        first_msg = f"Goal: {working_memory.get('goal', '')}"
+        ctx = working_memory.get("context")
+        if ctx:
+            first_msg += (
+                f"\n\nContext: {json.dumps(ctx, ensure_ascii=False)}"
+            )
+        summary = working_memory.get("summary_memory")
+        if summary:
+            first_msg += f"\n\nPrevious summary: {summary}"
+
+        messages: List[Dict[str, Any]] = [
+            {"role": "user", "content": first_msg},
+        ]
+
+        history = working_memory.get("history", [])
+        if not history:
+            return messages
+
+        for turn in history:
+            action = turn.get("action", {})
+            action_type = action.get("action_type", "")
+            observation = turn.get("observation", "")
+            turn_num = turn.get("turn", 0)
+
+            if action_type == "tool_call":
+                tool_use_id = f"toolu_history_{turn_num}"
+                # Assistant message with tool_use block
+                messages.append({
+                    "role": "assistant",
+                    "content": [{
+                        "type": "tool_use",
+                        "id": tool_use_id,
+                        "name": action.get("tool_name", "unknown"),
+                        "input": action.get("arguments", {}),
+                    }],
+                })
+                # User message with tool_result block
+                messages.append({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_id,
+                        "content": str(observation),
+                    }],
+                })
+            elif action_type == "final_response":
+                content = action.get("content", "")
+                if content:
+                    messages.append({
+                        "role": "assistant",
+                        "content": str(content),
+                    })
+            # schema_error turns are skipped
+
+        # Build the continuation prompt
+        continuation = "Continue working on the goal. What's your next step?"
+        schema_feedback = working_memory.get("schema_feedback")
+        if schema_feedback:
+            continuation += f"\n\nNote: {schema_feedback}"
+
+        # Ensure we end with a user message
+        if messages and messages[-1]["role"] == "assistant":
+            messages.append({"role": "user", "content": continuation})
+        elif messages and messages[-1]["role"] == "user":
+            # Last message is already user (tool_result); append continuation
+            # as a separate text block or merge
+            last = messages[-1]["content"]
+            if isinstance(last, list):
+                # Merge continuation into the tool_result message
+                last.append({"type": "text", "text": continuation})
+            else:
+                messages.append({"role": "user", "content": continuation})
+
+        return messages
 
     @staticmethod
     def _parse_response(response: Any) -> Dict[str, Any]:
+        result: Dict[str, Any] = {}
         text_content: str | None = None
         for block in response.content:
             if block.type == "tool_use":
-                return {
+                result = {
                     "type": "tool_call",
                     "tool_name": block.name,
                     "arguments": block.input,
                 }
+                break  # tool_use takes priority
             if block.type == "text":
                 text_content = block.text
 
-        if text_content is not None:
-            return {"type": "final_response", "content": text_content}
+        if not result and text_content is not None:
+            result = {"type": "final_response", "content": text_content}
+        elif not result:
+            raise ValueError(
+                "Anthropic response contained no usable content blocks."
+            )
 
-        raise ValueError("Anthropic response contained no usable content blocks.")
+        # Extract usage information
+        if hasattr(response, "usage") and response.usage:
+            result["_usage"] = {
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+                "total_tokens": (
+                    response.usage.input_tokens
+                    + response.usage.output_tokens
+                ),
+            }
+        return result
 
     @staticmethod
     def _resolve_api_key(explicit_key: str | None) -> str:

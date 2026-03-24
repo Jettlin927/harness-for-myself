@@ -22,8 +22,15 @@ class FakeToolUseBlock:
 
 
 @dataclass
+class FakeUsage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+@dataclass
 class FakeResponse:
     content: list[Any] | None = None
+    usage: FakeUsage | None = None
 
 
 class TestAnthropicLLMToolUse(unittest.TestCase):
@@ -231,6 +238,221 @@ class TestAnthropicLLMStreaming(unittest.TestCase):
         self.assertEqual(tokens, [])
         self.assertEqual(result["type"], "tool_call")
         self.assertEqual(result["tool_name"], "bash")
+
+
+class TestSetToolSchemas(unittest.TestCase):
+    """Test set_tool_schemas updates schemas used in generate calls."""
+
+    @patch("src.harness.anthropic_llm.anthropic")
+    def test_set_tool_schemas_updates_schemas(
+        self,
+        mock_anthropic: MagicMock,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_client
+        mock_client.messages.create.return_value = FakeResponse(
+            content=[FakeTextBlock(text="done")],
+        )
+
+        llm = AnthropicLLM(api_key="test-key")
+        self.assertEqual(llm.tool_schemas, [])
+
+        new_schemas = [
+            {
+                "name": "read_file",
+                "description": "Read a file",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                },
+            },
+        ]
+        llm.set_tool_schemas(new_schemas)
+        llm.generate({"goal": "test", "history": []})
+
+        call_kwargs = mock_client.messages.create.call_args
+        self.assertEqual(call_kwargs.kwargs["tools"], new_schemas)
+
+
+class TestUsageInResponse(unittest.TestCase):
+    """Test that _parse_response returns _usage field."""
+
+    @patch("src.harness.anthropic_llm.anthropic")
+    def test_usage_returned_in_response(
+        self,
+        mock_anthropic: MagicMock,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_client
+        mock_client.messages.create.return_value = FakeResponse(
+            content=[FakeTextBlock(text="hello")],
+            usage=FakeUsage(input_tokens=100, output_tokens=50),
+        )
+
+        llm = AnthropicLLM(api_key="test-key")
+        result = llm.generate({"goal": "test", "history": []})
+
+        self.assertIn("_usage", result)
+        self.assertEqual(result["_usage"]["input_tokens"], 100)
+        self.assertEqual(result["_usage"]["output_tokens"], 50)
+        self.assertEqual(result["_usage"]["total_tokens"], 150)
+
+    @patch("src.harness.anthropic_llm.anthropic")
+    def test_no_usage_when_absent(
+        self,
+        mock_anthropic: MagicMock,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_client
+        mock_client.messages.create.return_value = FakeResponse(
+            content=[FakeTextBlock(text="hello")],
+            usage=None,
+        )
+
+        llm = AnthropicLLM(api_key="test-key")
+        result = llm.generate({"goal": "test", "history": []})
+
+        self.assertNotIn("_usage", result)
+
+    @patch("src.harness.anthropic_llm.anthropic")
+    def test_streaming_returns_usage(
+        self,
+        mock_anthropic: MagicMock,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_anthropic.Anthropic.return_value = mock_client
+
+        mock_stream_ctx = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream_ctx.__enter__ = MagicMock(return_value=mock_stream)
+        mock_stream_ctx.__exit__ = MagicMock(return_value=False)
+        mock_client.messages.stream.return_value = mock_stream_ctx
+        mock_stream.__iter__ = MagicMock(return_value=iter([]))
+
+        final_msg = FakeResponse(
+            content=[FakeTextBlock(text="streamed")],
+            usage=FakeUsage(input_tokens=200, output_tokens=80),
+        )
+        mock_stream.get_final_message.return_value = final_msg
+
+        llm = AnthropicLLM(api_key="test-key")
+        llm.on_token = lambda t: None
+        result = llm.generate({"goal": "test", "history": []})
+
+        self.assertIn("_usage", result)
+        self.assertEqual(result["_usage"]["total_tokens"], 280)
+
+
+class TestMultiTurnMessagesFormat(unittest.TestCase):
+    """Test _build_messages generates correct multi-turn format."""
+
+    def test_empty_history_single_user_message(self) -> None:
+        wm = {
+            "goal": "do something",
+            "context": {},
+            "summary_memory": "",
+            "history": [],
+        }
+        msgs = AnthropicLLM._build_messages(wm)
+        self.assertEqual(len(msgs), 1)
+        self.assertEqual(msgs[0]["role"], "user")
+        self.assertIn("Goal: do something", msgs[0]["content"])
+
+    def test_summary_included_in_first_message(self) -> None:
+        wm = {
+            "goal": "test",
+            "context": {"file": "a.py"},
+            "summary_memory": "Previously read file a.py",
+            "history": [],
+        }
+        msgs = AnthropicLLM._build_messages(wm)
+        self.assertIn("Previous summary: Previously read file a.py",
+                       msgs[0]["content"])
+        self.assertIn("Context:", msgs[0]["content"])
+
+    def test_tool_call_history_produces_tool_use_and_result(self) -> None:
+        wm = {
+            "goal": "read file",
+            "context": {},
+            "summary_memory": "",
+            "history": [
+                {
+                    "turn": 1,
+                    "action": {
+                        "action_type": "tool_call",
+                        "tool_name": "read_file",
+                        "arguments": {"path": "/tmp/test.py"},
+                    },
+                    "observation": "tool=read_file; ok=True; output=content",
+                },
+            ],
+        }
+        msgs = AnthropicLLM._build_messages(wm)
+
+        # First msg: user with goal
+        self.assertEqual(msgs[0]["role"], "user")
+        # Second msg: assistant with tool_use
+        self.assertEqual(msgs[1]["role"], "assistant")
+        tool_block = msgs[1]["content"][0]
+        self.assertEqual(tool_block["type"], "tool_use")
+        self.assertEqual(tool_block["name"], "read_file")
+        self.assertEqual(tool_block["id"], "toolu_history_1")
+        # Third msg: user with tool_result + continuation
+        self.assertEqual(msgs[2]["role"], "user")
+        content = msgs[2]["content"]
+        self.assertIsInstance(content, list)
+        self.assertEqual(content[0]["type"], "tool_result")
+        self.assertEqual(
+            content[0]["tool_use_id"], "toolu_history_1"
+        )
+        # Continuation text appended
+        self.assertEqual(content[1]["type"], "text")
+        self.assertIn("Continue working", content[1]["text"])
+
+    def test_final_response_history(self) -> None:
+        wm = {
+            "goal": "test",
+            "context": {},
+            "summary_memory": "",
+            "history": [
+                {
+                    "turn": 1,
+                    "action": {
+                        "action_type": "final_response",
+                        "content": "I finished.",
+                    },
+                    "observation": "",
+                },
+            ],
+        }
+        msgs = AnthropicLLM._build_messages(wm)
+        # user, assistant (final_response), user (continuation)
+        self.assertEqual(msgs[1]["role"], "assistant")
+        self.assertEqual(msgs[1]["content"], "I finished.")
+        self.assertEqual(msgs[2]["role"], "user")
+        self.assertIn("Continue working", msgs[2]["content"])
+
+    def test_schema_feedback_appended(self) -> None:
+        wm = {
+            "goal": "test",
+            "context": {},
+            "summary_memory": "",
+            "history": [
+                {
+                    "turn": 1,
+                    "action": {
+                        "action_type": "final_response",
+                        "content": "done",
+                    },
+                    "observation": "",
+                },
+            ],
+            "schema_feedback": "Your output was invalid JSON",
+        }
+        msgs = AnthropicLLM._build_messages(wm)
+        last_msg = msgs[-1]
+        self.assertEqual(last_msg["role"], "user")
+        self.assertIn("Your output was invalid JSON", last_msg["content"])
 
 
 class TestAnthropicLLMImportError(unittest.TestCase):
