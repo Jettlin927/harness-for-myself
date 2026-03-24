@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import re
 import subprocess
 from pathlib import Path
@@ -80,9 +81,22 @@ def edit_file(arguments: dict[str, Any]) -> Any:
         )
 
     new_content = content.replace(old_text, new_text, 1)
+
+    # Generate unified diff before writing
+    old_lines = content.splitlines(keepends=True)
+    new_lines = new_content.splitlines(keepends=True)
+    diff = "".join(
+        difflib.unified_diff(
+            old_lines,
+            new_lines,
+            fromfile=f"a/{p.name}",
+            tofile=f"b/{p.name}",
+        )
+    )
+
     p.write_text(new_content, encoding="utf-8")
 
-    return {"path": str(p), "replacements": 1}
+    return {"path": str(p), "replacements": 1, "diff": diff}
 
 
 def run_bash(arguments: dict[str, Any]) -> Any:

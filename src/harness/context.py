@@ -26,6 +26,17 @@ def load_project_context(root: Path) -> dict[str, Any]:
     ctx["context_md"] = _load_context_md(root)
     ctx["git"] = _load_git_state(root)
     ctx["project_type"] = _detect_project_type(root)
+
+    # Load persistent cross-session memory if available
+    memory_dir = root / ".hau" / "memory"
+    if memory_dir.is_dir():
+        from .project_memory import ProjectMemory
+
+        pm = ProjectMemory(root)
+        memory_str = pm.to_context_string()
+        if memory_str:
+            ctx["project_memory"] = memory_str
+
     return ctx
 
 
@@ -83,11 +94,24 @@ def _detect_project_type(root: Path) -> dict[str, Any]:
     languages: list[str] = []
     package_manager = "none"
     test_command = ""
+    lint_command = ""
+    format_command = ""
     build_file = ""
     extra: dict[str, Any] = {}
 
+    # Read file contents for deeper inspection (empty string if file missing/empty)
+    has_pyproject = (root / "pyproject.toml").is_file()
+    pyproject_text = ""
+    if has_pyproject:
+        pyproject_text = (root / "pyproject.toml").read_text(encoding="utf-8")
+
+    has_package_json = (root / "package.json").is_file()
+    package_json_text = ""
+    if has_package_json:
+        package_json_text = (root / "package.json").read_text(encoding="utf-8")
+
     # Python
-    if (root / "pyproject.toml").is_file():
+    if has_pyproject:
         languages.append("python")
         build_file = "pyproject.toml"
         if (root / "uv.lock").is_file():
@@ -97,8 +121,13 @@ def _detect_project_type(root: Path) -> dict[str, Any]:
             package_manager = "pip"
             test_command = "pytest"
 
+        # Lint / format commands from pyproject.toml
+        if "[tool.ruff]" in pyproject_text:
+            lint_command = "ruff check ."
+            format_command = "ruff format --check ."
+
     # JavaScript / TypeScript
-    if (root / "package.json").is_file():
+    if has_package_json:
         languages.extend(["javascript", "typescript"])
         if not build_file:
             build_file = "package.json"
@@ -109,7 +138,28 @@ def _detect_project_type(root: Path) -> dict[str, Any]:
         else:
             package_manager = "npm"
         if not test_command:
-            test_command = "npm test"
+            # Detect scripts.test in package.json
+            if '"test"' in package_json_text:
+                if package_manager == "pnpm":
+                    test_command = "pnpm test"
+                else:
+                    test_command = "npm test"
+        if not lint_command:
+            # Check for eslint
+            has_eslint_config = any(
+                (root / f).is_file()
+                for f in (".eslintrc", ".eslintrc.js", ".eslintrc.json", ".eslintrc.yml")
+            )
+            if has_eslint_config or '"eslint"' in package_json_text:
+                lint_command = "npx eslint ."
+        if not format_command:
+            # Check for prettier
+            has_prettier_config = any(
+                (root / f).is_file()
+                for f in (".prettierrc", ".prettierrc.js", ".prettierrc.json", ".prettierrc.yml")
+            )
+            if has_prettier_config or '"prettier"' in package_json_text:
+                format_command = "npx prettier --check ."
 
     # Rust
     if (root / "Cargo.toml").is_file():
@@ -119,6 +169,8 @@ def _detect_project_type(root: Path) -> dict[str, Any]:
         package_manager = "cargo"
         if not test_command:
             test_command = "cargo test"
+        if not lint_command:
+            lint_command = "cargo clippy"
 
     # Go
     if (root / "go.mod").is_file():
@@ -128,15 +180,31 @@ def _detect_project_type(root: Path) -> dict[str, Any]:
         if not test_command:
             test_command = "go test ./..."
 
-    # Makefile
+    # Makefile — check for test target and potentially override test_command
     if (root / "Makefile").is_file():
         extra["has_makefile"] = True
+        makefile_text = (root / "Makefile").read_text(encoding="utf-8")
+        if _makefile_has_target(makefile_text, "test"):
+            test_command = "make test"
 
     result: dict[str, Any] = {
         "languages": languages,
         "package_manager": package_manager,
         "test_command": test_command,
+        "lint_command": lint_command,
+        "format_command": format_command,
         "build_file": build_file,
     }
     result.update(extra)
     return result
+
+
+def _makefile_has_target(makefile_text: str, target: str) -> bool:
+    """Check whether a Makefile contains a given target (e.g. 'test:')."""
+    for line in makefile_text.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith(f"{target}:") or stripped.startswith(f".PHONY: {target}"):
+            # Matches "test:" or "test: deps" at start of line
+            if stripped.startswith(f"{target}:"):
+                return True
+    return False

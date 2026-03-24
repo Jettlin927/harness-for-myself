@@ -113,6 +113,24 @@ class EditFileTests(unittest.TestCase):
             )
         self.assertIn("2 matches", str(ctx.exception))
 
+    def test_edit_file_returns_diff(self) -> None:
+        """edit_file should return a diff field with unified diff format."""
+        p = self.root / "diffme.txt"
+        p.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
+        result = edit_file(
+            {
+                "path": str(p),
+                "old_text": "beta",
+                "new_text": "BETA",
+            }
+        )
+        self.assertIn("diff", result)
+        diff = result["diff"]
+        self.assertIn("--- a/diffme.txt", diff)
+        self.assertIn("+++ b/diffme.txt", diff)
+        self.assertIn("-beta", diff)
+        self.assertIn("+BETA", diff)
+
     def test_replacement_content_correct(self) -> None:
         p = self.root / "verify.txt"
         p.write_text("foo bar baz\n", encoding="utf-8")

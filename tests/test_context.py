@@ -128,6 +128,67 @@ class TestDetectProjectType(unittest.TestCase):
             result = _detect_project_type(root)
             self.assertTrue(result.get("has_makefile"))
 
+    def test_python_project_detects_lint_command(self) -> None:
+        """pyproject.toml with [tool.ruff] should detect ruff lint/format commands."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "pyproject.toml").write_text(
+                "[project]\nname = 'foo'\n\n[tool.ruff]\nline-length = 100\n",
+                encoding="utf-8",
+            )
+
+            result = _detect_project_type(root)
+            self.assertEqual(result["lint_command"], "ruff check .")
+            self.assertEqual(result["format_command"], "ruff format --check .")
+
+    def test_makefile_test_target(self) -> None:
+        """Makefile with a test target should override test_command to 'make test'."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "pyproject.toml").touch()
+            (root / "uv.lock").touch()
+            (root / "Makefile").write_text(
+                ".PHONY: test\ntest:\n\tpytest\n",
+                encoding="utf-8",
+            )
+
+            result = _detect_project_type(root)
+            self.assertEqual(result["test_command"], "make test")
+
+    def test_no_lint_command_when_absent(self) -> None:
+        """No lint tool configured should return empty lint_command."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "pyproject.toml").write_text(
+                "[project]\nname = 'foo'\n",
+                encoding="utf-8",
+            )
+
+            result = _detect_project_type(root)
+            self.assertEqual(result["lint_command"], "")
+            self.assertEqual(result["format_command"], "")
+
+    def test_rust_project_detects_clippy(self) -> None:
+        """Cargo.toml should detect cargo clippy as lint command."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Cargo.toml").touch()
+
+            result = _detect_project_type(root)
+            self.assertEqual(result["lint_command"], "cargo clippy")
+
+    def test_node_project_detects_eslint(self) -> None:
+        """package.json with eslint should detect eslint lint command."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "package.json").write_text(
+                '{"devDependencies": {"eslint": "^8.0.0"}}',
+                encoding="utf-8",
+            )
+
+            result = _detect_project_type(root)
+            self.assertEqual(result["lint_command"], "npx eslint .")
+
 
 class TestLoadGitState(unittest.TestCase):
     """Tests for _load_git_state."""
