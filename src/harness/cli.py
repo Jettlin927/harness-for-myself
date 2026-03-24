@@ -112,6 +112,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     """Execute the `run` subcommand."""
     agent = _build_agent(args)
     context = _parse_context(args.context)
+    if agent.config.project_root:
+        from pathlib import Path
+
+        from .context import load_project_context
+
+        context["project"] = load_project_context(
+            Path(agent.config.project_root)
+        )
     result = agent.run(goal=args.goal, context=context)
     _print_result(result)
     return 0

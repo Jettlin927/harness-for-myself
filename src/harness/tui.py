@@ -198,6 +198,13 @@ class InteractiveSession:
         self._streaming: bool = False
         self._session_mgr = SessionManager(session_dir)
         self._session: SessionState = self._init_session(new_session)
+        self._project_context: dict[str, Any] = {}
+        if self.agent.config.project_root:
+            from .context import load_project_context
+
+            self._project_context = load_project_context(
+                Path(self.agent.config.project_root)
+            )
 
     # ── public ────────────────────────────────────────────────────────────────
 
@@ -275,6 +282,17 @@ class InteractiveSession:
                 padding=(0, 2),
             )
         )
+        if self._project_context:
+            pt = self._project_context.get("project_type", {})
+            langs = ", ".join(pt.get("languages", []))
+            git = self._project_context.get("git")
+            branch = (
+                git.get("branch", "?") if git else "not a git repo"
+            )
+            self.console.print(
+                f"  [{_STYLE_DIM}]Project: {langs or 'unknown'}"
+                f"  Branch: {branch}[/{_STYLE_DIM}]"
+            )
         self.console.print()
 
     def _prompt_goal(self) -> str | None:
@@ -301,6 +319,8 @@ class InteractiveSession:
         context: dict = {}
         if self._session.accumulated_summary:
             context["session_history"] = self._session.accumulated_summary
+        if self._project_context:
+            context["project"] = self._project_context
 
         # Start spinner for the first LLM call
         self._streaming = False

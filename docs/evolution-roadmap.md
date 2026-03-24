@@ -134,7 +134,7 @@
 
 ---
 
-## Phase 4：项目感知（让 agent 理解它在哪个项目里）
+## Phase 4：项目感知（让 agent 理解它在哪个项目里） ✅ 已完成
 
 ### 边界
 - **输入：** agent 对项目一无所知，每次从零开始
@@ -175,7 +175,7 @@ Phase 2 (原生 tool_use) ✅ 完成 → AnthropicLLM + tool schema + --provider
     ↓
 Phase 3 (流式+权限)     ⬜ 下一步 → 流式渲染 + ask/auto-edit/yolo 三级信任
     ↓
-Phase 4 (项目感知)      ⬜ 待做 → .hau/CONTEXT.md + git 状态注入 + 项目类型检测
+Phase 4 (项目感知)      ✅ 完成 → context.py + TUI/CLI 上下文注入 + 项目类型检测
 ```
 
 **Phase 1 和 Phase 2 可以有限并行：** coding_tools.py 和 anthropic_llm.py 没有代码依赖，但 Phase 2 完成后需要集成测试（用 Claude 调编程工具）。

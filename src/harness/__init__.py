@@ -2,6 +2,7 @@
 
 from .agent import HarnessAgent, RunConfig
 from .config import StrategyConfig
+from .context import load_project_context
 from .eval import EvalCase, EvalReport, EvalRunner
 from .llm import DeepSeekLLM, RuleBasedLLM, ScriptedLLM, build_system_prompt
 from .session import SessionManager, SessionState
@@ -23,6 +24,7 @@ __all__ = [
     "EvalReport",
     "SessionManager",
     "SessionState",
+    "load_project_context",
 ]
 
 try:
