@@ -61,6 +61,8 @@ class RunConfig:
     dangerous_tools: tuple[str, ...] = ()
     goal_reached_token: str | None = None
     allowed_write_roots: tuple[str, ...] = ()
+    project_root: str = ""
+    allow_bash: bool = True
 
 
 class HarnessAgent:
@@ -81,6 +83,12 @@ class HarnessAgent:
         self.llm = llm
         self.config = config or RunConfig()
         self.tools = ToolDispatcher(allowed_write_roots=list(self.config.allowed_write_roots))
+        if self.config.project_root:
+            from .tools import register_coding_tools
+
+            register_coding_tools(
+                self.tools, allow_bash=self.config.allow_bash
+            )
         self.memory = MemoryManager(max_history_turns=self.config.max_history_turns)
         self.error_policy = ErrorPolicy(tool_retry_limit=self.config.tool_retry_limit)
         self.snapshot_store = SnapshotStore(self.config.snapshot_dir or self.config.log_dir)
@@ -97,6 +105,7 @@ class HarnessAgent:
         *,
         resume_from: str | None = None,
         on_turn: Callable[["TurnRecord"], None] | None = None,
+        on_approve: Callable[[str, str, Dict[str, Any]], bool] | None = None,
     ) -> RunResult:
         """Run the agent loop until a stop condition is met.
 
@@ -211,6 +220,7 @@ class HarnessAgent:
                 tool_name=action.tool_name or "",
                 arguments=action.arguments,
                 dangerous_tool_signatures=dangerous_sigs,
+                on_approve=on_approve,
             )
             runtime_state.budget_used += tool_result.attempts
             if not tool_result.ok:
@@ -362,13 +372,27 @@ class HarnessAgent:
             }
         )
 
+    _APPROVAL_REQUIRED_TOOLS = frozenset({
+        "bash", "edit_file", "write_text_file",
+    })
+
     def _execute_tool_call(
         self,
         *,
         tool_name: str,
         arguments: Dict[str, Any],
         dangerous_tool_signatures: List[str],
+        on_approve: Callable[[str, str, Dict[str, Any]], bool] | None = None,
     ) -> ToolExecutionResult:
+        if on_approve and tool_name in self._APPROVAL_REQUIRED_TOOLS:
+            desc = self._describe_tool_call(tool_name, arguments)
+            if not on_approve(tool_name, desc, arguments):
+                return ToolExecutionResult(
+                    ok=False,
+                    output=None,
+                    error="User denied tool execution",
+                )
+
         fingerprint = json.dumps(
             {"tool_name": tool_name, "arguments": arguments}, sort_keys=True, ensure_ascii=False
         )
@@ -394,3 +418,17 @@ class HarnessAgent:
         ):
             dangerous_tool_signatures.append(fingerprint)
         return result
+
+    @staticmethod
+    def _describe_tool_call(
+        tool_name: str, arguments: Dict[str, Any]
+    ) -> str:
+        if tool_name == "bash":
+            return str(arguments.get("command", ""))
+        if tool_name == "edit_file":
+            path = arguments.get("path", "")
+            old = str(arguments.get("old_text", ""))[:50]
+            return f"{path}: {old!r}"
+        if tool_name == "write_text_file":
+            return str(arguments.get("path", ""))
+        return str(arguments)

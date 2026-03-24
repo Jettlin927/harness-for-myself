@@ -181,7 +181,10 @@ class DeepSeekLLM(BaseLLM):
             '{"type":"tool_call","tool_name":"<tool>","arguments":{...}} '
             'or {"type":"final_response","content":"<answer>"}. '
             "Available tools: echo(text), add(a,b), utc_now(), "
-            "write_text_file(path, content) for saving text files into the allowed directory."
+            "write_text_file(path, content), "
+            "read_file(path, offset?, limit?) for reading file contents, "
+            "edit_file(path, old_text, new_text) for precise text replacement, "
+            "bash(command, timeout?) for running shell commands."
         )
         user_prompt = json.dumps(working_memory, ensure_ascii=False, indent=2)
         return [

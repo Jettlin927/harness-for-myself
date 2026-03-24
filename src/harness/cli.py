@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any, Dict
 
@@ -42,22 +43,29 @@ def _parse_context(raw: str) -> Dict[str, Any]:
 
 def _build_run_config(args: argparse.Namespace) -> RunConfig:
     """Build a RunConfig from parsed CLI args, optionally seeded by --config."""
+    project_root = getattr(args, "project_root", "") or ""
+    allow_bash = getattr(args, "allow_bash", True)
+
     strategy = _load_strategy_config(getattr(args, "config", None))
     if strategy is not None:
         base = strategy.to_run_config()
-        # CLI flags override config-file values when explicitly provided.
-        # argparse defaults make it hard to detect "was it set?", so we simply
-        # re-apply the args that share names with RunConfig fields.
         base.max_steps = args.max_steps
         base.snapshot_dir = getattr(args, "snapshot_dir", base.snapshot_dir)
         base.log_dir = getattr(args, "log_dir", base.log_dir)
-        base.goal_reached_token = getattr(args, "goal_reached_token", None) or base.goal_reached_token
+        base.goal_reached_token = (
+            getattr(args, "goal_reached_token", None)
+            or base.goal_reached_token
+        )
+        base.project_root = project_root
+        base.allow_bash = allow_bash
         return base
     return RunConfig(
         max_steps=args.max_steps,
         snapshot_dir=getattr(args, "snapshot_dir", None),
         log_dir=getattr(args, "log_dir", "logs"),
         goal_reached_token=getattr(args, "goal_reached_token", None),
+        project_root=project_root,
+        allow_bash=allow_bash,
     )
 
 
@@ -229,6 +237,19 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[shared],
         help="Run the agent on a goal.",
     )
+    run_parser.add_argument(
+        "--project-root",
+        default=os.getcwd(),
+        metavar="DIR",
+        help="Project directory for coding tools (default: cwd).",
+    )
+    run_parser.add_argument(
+        "--no-bash",
+        dest="allow_bash",
+        action="store_false",
+        default=True,
+        help="Disable the bash tool.",
+    )
     run_parser.add_argument("goal", help="Task goal for the agent.")
     run_parser.add_argument(
         "--context", default="{}", metavar="JSON", help="Extra context as a JSON object."
@@ -261,6 +282,19 @@ def build_parser() -> argparse.ArgumentParser:
         "chat",
         parents=[shared],
         help="Start an interactive multi-turn chat session (visual TUI).",
+    )
+    chat_parser.add_argument(
+        "--project-root",
+        default=os.getcwd(),
+        metavar="DIR",
+        help="Project directory for coding tools (default: cwd).",
+    )
+    chat_parser.add_argument(
+        "--no-bash",
+        dest="allow_bash",
+        action="store_false",
+        default=True,
+        help="Disable the bash tool.",
     )
     chat_parser.add_argument(
         "--new-session",

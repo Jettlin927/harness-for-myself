@@ -6,7 +6,7 @@ PYTHON312 := $(CURDIR)/.uv-python/cpython-3.12.13-macos-aarch64-none/bin/python3
 VENV_PYTHON := $(CURDIR)/.venv/bin/python
 RUFF := UV_CACHE_DIR="$(UV_CACHE_DIR)" XDG_DATA_HOME="$(XDG_DATA_HOME)" ~/.local/bin/uvx ruff
 
-.PHONY: help setup install-python venv install fmt lint smoke test check run run-deepseek eval chat clean
+.PHONY: help setup install-python venv install fmt lint typecheck smoke test check run run-deepseek eval chat clean
 
 help:
 	@echo "Available targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  make install            Install project dependencies (rich, etc.)"
 	@echo "  make fmt                Format Python files with Ruff"
 	@echo "  make lint               Lint Python files with Ruff"
+	@echo "  make typecheck          Type check with Pyright"
 	@echo "  make smoke              Run smoke tests only"
 	@echo "  make test               Run the unittest suite"
 	@echo "  make check              Run lint + smoke + full test suite"
@@ -44,6 +45,9 @@ fmt:
 lint:
 	$(RUFF) check .
 
+typecheck:
+	"$(VENV_PYTHON)" -m pyright src/
+
 smoke:
 	"$(VENV_PYTHON)" -m unittest tests.test_smoke
 
@@ -51,6 +55,8 @@ test:
 	"$(VENV_PYTHON)" -m unittest discover -s tests -p "test_*.py"
 
 check: lint smoke test
+
+fullcheck: lint typecheck smoke test
 
 run:
 	@if [ -z "$(GOAL)" ]; then echo "Usage: make run GOAL='please add numbers'"; exit 1; fi

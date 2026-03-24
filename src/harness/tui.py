@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict
 
 from rich.console import Console
 from rich.markup import escape
@@ -292,7 +292,12 @@ class InteractiveSession:
                 self._start_status("Thinking...")
 
         try:
-            result = self.agent.run(goal=goal, context=context, on_turn=on_turn)
+            result = self.agent.run(
+                goal=goal,
+                context=context,
+                on_turn=on_turn,
+                on_approve=self._approve_tool,
+            )
         except KeyboardInterrupt:
             self._stop_status()
             self.console.print(f"\n[{_STYLE_DIM}]Interrupted[/{_STYLE_DIM}]\n")
@@ -312,6 +317,33 @@ class InteractiveSession:
 
         duration = time.monotonic() - t0
         self._print_summary(result, duration)
+
+    def _approve_tool(
+        self,
+        tool_name: str,
+        description: str,
+        arguments: Dict[str, Any],
+    ) -> bool:
+        """Prompt the user for approval before running a sensitive tool."""
+        _ = arguments
+        self._stop_status()
+        short = (
+            description[:80] + "..." if len(description) > 80
+            else description
+        )
+        try:
+            answer = Prompt.ask(
+                f"[yellow]{_ICON_SCHEMA} Allow [bold]{tool_name}"
+                f"[/bold]: {escape(short)}?[/yellow]",
+                choices=["y", "n"],
+                default="y",
+            )
+        except (EOFError, KeyboardInterrupt):
+            return False
+        approved = answer.lower() == "y"
+        if approved:
+            self._start_status("Running tool...")
+        return approved
 
     def _print_summary(self, result: Any, duration: float) -> None:
         stop = result.stop_reason

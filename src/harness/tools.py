@@ -25,15 +25,58 @@ class ToolDispatcher:
 
     def __init__(self, allowed_write_roots: list[str | Path] | None = None) -> None:
         self.allowed_write_roots = [
-            Path(root).expanduser().resolve() for root in (allowed_write_roots or [])
+            Path(root).expanduser().resolve()
+            for root in (allowed_write_roots or [])
         ]
         self._tools: Dict[str, Callable[[dict[str, Any]], Any]] = {}
-        self.register_tool("echo", self._echo)
-        self.register_tool("add", self._add)
-        self.register_tool("utc_now", self._utc_now)
-        self.register_tool("write_text_file", self._write_text_file)
+        self._schemas: Dict[str, dict[str, Any]] = {}
+        self.register_tool("echo", self._echo, schema={
+            "type": "object",
+            "description": "Echo back the given text",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "Text to echo",
+                },
+            },
+            "required": ["text"],
+        })
+        self.register_tool("add", self._add, schema={
+            "type": "object",
+            "description": "Add two numbers together",
+            "properties": {
+                "a": {"type": "number", "description": "First number"},
+                "b": {"type": "number", "description": "Second number"},
+            },
+            "required": ["a", "b"],
+        })
+        self.register_tool("utc_now", self._utc_now, schema={
+            "type": "object",
+            "description": "Return the current UTC time",
+            "properties": {},
+        })
+        self.register_tool("write_text_file", self._write_text_file, schema={
+            "type": "object",
+            "description": "Write text content to a file",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Absolute file path",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Text content to write",
+                },
+            },
+            "required": ["path", "content"],
+        })
 
-    def register_tool(self, name: str, tool: Callable[[dict[str, Any]], Any]) -> None:
+    def register_tool(
+        self,
+        name: str,
+        tool: Callable[[dict[str, Any]], Any],
+        schema: dict[str, Any] | None = None,
+    ) -> None:
         """Register a custom tool callable under ``name``.
 
         Args:
@@ -41,8 +84,22 @@ class ToolDispatcher:
             tool: A callable that accepts a single ``arguments`` dict and
                 returns any JSON-serialisable value, or raises an exception
                 on failure.
+            schema: Optional JSON Schema describing the tool's input.
         """
         self._tools[name] = tool
+        if schema is not None:
+            self._schemas[name] = schema
+
+    def get_tool_schemas(self) -> list[dict[str, Any]]:
+        """Return Anthropic-compatible tool definitions for registered tools."""
+        return [
+            {
+                "name": name,
+                "description": schema.get("description", ""),
+                "input_schema": schema,
+            }
+            for name, schema in self._schemas.items()
+        ]
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> ToolExecutionResult:
         """Dispatch a tool call and return the execution result.
@@ -114,3 +171,17 @@ class ToolDispatcher:
             if target_path == root or root in target_path.parents:
                 return True
         return False
+
+
+def register_coding_tools(
+    dispatcher: ToolDispatcher,
+    *,
+    allow_bash: bool = True,
+) -> None:
+    """Register coding tools (read_file, edit_file, bash) on the dispatcher."""
+    from .coding_tools import edit_file, read_file, run_bash
+
+    dispatcher.register_tool("read_file", read_file)
+    dispatcher.register_tool("edit_file", edit_file)
+    if allow_bash:
+        dispatcher.register_tool("bash", run_bash)
