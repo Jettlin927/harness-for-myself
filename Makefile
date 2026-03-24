@@ -46,7 +46,7 @@ lint:
 	$(RUFF) check .
 
 typecheck:
-	"$(VENV_PYTHON)" -m pyright src/
+	UV_CACHE_DIR="$(UV_CACHE_DIR)" $(UV) run pyright src/
 
 smoke:
 	"$(VENV_PYTHON)" -m unittest tests.test_smoke
