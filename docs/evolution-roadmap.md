@@ -173,7 +173,7 @@ Phase 1 (编程工具)     ✅ 完成 → coding_tools.py + TUI 确认 + CLI --p
     ↓
 Phase 2 (原生 tool_use) ✅ 完成 → AnthropicLLM + tool schema + --provider/--model + token budget
     ↓
-Phase 3 (流式+权限)     ⬜ 下一步 → 流式渲染 + ask/auto-edit/yolo 三级信任
+Phase 3 (流式+权限)     ✅ 完成 → 流式渲染 + ask/auto-edit/yolo 三级信任
     ↓
 Phase 4 (项目感知)      ✅ 完成 → context.py + TUI/CLI 上下文注入 + 项目类型检测
 ```

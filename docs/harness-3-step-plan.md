@@ -115,5 +115,5 @@
 三步计划已全部完成。项目正在向"编程 Agent 工具"方向演进，详见 `evolution-roadmap.md`：
 - Phase 1 ✅ 编程工具（read_file/edit_file/bash + TUI 确认）
 - Phase 2 ✅ Anthropic 原生 tool_use + CLI --provider/--model + token 预算
-- Phase 3 ⬜ 流式输出 + 权限系统
-- Phase 4 ⬜ 项目上下文感知
+- Phase 3 ✅ 流式输出 + 权限系统（ask/auto-edit/yolo 三级信任）
+- Phase 4 ✅ 项目上下文感知（.hau/CONTEXT.md + git 状态 + 项目类型检测）

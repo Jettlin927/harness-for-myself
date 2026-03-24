@@ -19,22 +19,17 @@
 | Step 2: Reliability Layer | ✅ | `docs/step2-reliability-layer.md` |
 | Step 3: Ops & Evolution | ✅ | `docs/harness-3-step-plan.md`（底部进展记录） |
 | Phase 1: 编程工具 | ✅ | `docs/evolution-roadmap.md` → Phase 1 |
-| Phase 2: 原生 Tool Use | 🚧 进行中 | `docs/evolution-roadmap.md` → Phase 2 |
+| Phase 2: 原生 Tool Use | ✅ | `docs/evolution-roadmap.md` → Phase 2 |
+| Phase 3: 流式输出 + 权限系统 | ✅ | `docs/evolution-roadmap.md` → Phase 3 |
+| Phase 4: 项目感知 | ✅ | `docs/evolution-roadmap.md` → Phase 4 |
 
-### Phase 2 进行中细节
-
-**已完成：**
-- `src/harness/anthropic_llm.py` — AnthropicLLM 适配器 + 工具 schema 自动生成
-- CLI 集成 — `--provider anthropic --model` 参数、token 预算
-- `tests/test_anthropic_llm.py` — 适配器测试
-
-**尚未完成：** 需对照 `docs/evolution-roadmap.md` Phase 2 改动范围逐项确认
+Phase 1-4 全部完成。当前具备：编程工具（read_file/edit_file/bash）、Anthropic 原生 tool_use、流式 token 输出、ask/auto-edit/yolo 三级权限、项目上下文注入。
 
 ### 下一步（按优先级）
 
-1. **完成 Phase 2 集成** — 详见 `docs/evolution-roadmap.md` → Phase 2
-2. **Phase 3: 流式输出 + 权限系统** — 详见 `docs/evolution-roadmap.md` → Phase 3
-3. **Phase 4: 项目感知** — 详见 `docs/evolution-roadmap.md` → Phase 4
+1. **Anthropic 集成完善** — 对话历史构建、多轮 tool_use 稳定性
+2. **补充测试覆盖** — 流式输出、权限系统、项目上下文的集成测试
+3. **文档与分发** — 详见 `docs/github-readiness-and-distribution.md`
 
 ## 项目结构
 
@@ -48,6 +43,7 @@ src/harness/          # 核心代码
   types.py            # 共享类型定义（LLMAction, RunResult 等）
   coding_tools.py     # 编程工具（read_file, edit_file, run_bash）
   memory.py           # 工作记忆与压缩
+  context.py          # 项目上下文加载器（.hau/CONTEXT.md + git + 项目类型检测）
   session.py          # 会话管理 SessionManager
   config.py           # StrategyConfig 版本化配置
   eval.py             # EvalRunner 离线回归
