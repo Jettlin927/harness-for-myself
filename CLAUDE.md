@@ -23,13 +23,18 @@
 | Phase 3: 流式输出 + 权限系统 | ✅ | `docs/evolution-roadmap.md` → Phase 3 |
 | Phase 4: 项目感知 | ✅ | `docs/evolution-roadmap.md` → Phase 4 |
 
-Phase 1-4 全部完成。当前具备：编程工具（read_file/edit_file/bash）、Anthropic 原生 tool_use、流式 token 输出、ask/auto-edit/yolo 三级权限、项目上下文注入。
+Phase 1-4 全部完成。当前具备：编程工具（read_file/edit_file/write_file/bash）、搜索导航工具（glob_files/grep_search/list_directory）、Anthropic 原生 tool_use、流式 token 输出、ask/auto-edit/yolo 三级权限、项目上下文注入。
+
+### P0 修复（已完成）
+
+- **搜索/导航工具** — glob_files、grep_search、list_directory，agent 可自主发现和导航代码
+- **write_file 工具** — 支持创建新文件（拒绝覆盖已有文件，引导用 edit_file）
+- **多轮对话稳定性** — 修复 _build_messages 中连续同 role 消息、空历史 + schema_feedback、tool_result 序列化格式
 
 ### 下一步（按优先级）
 
-1. **Anthropic 集成完善** — 对话历史构建、多轮 tool_use 稳定性
-2. **补充测试覆盖** — 流式输出、权限系统、项目上下文的集成测试
-3. **文档与分发** — 详见 `docs/github-readiness-and-distribution.md`
+1. **补充测试覆盖** — 流式输出、权限系统、项目上下文的集成测试
+2. **文档与分发** — 详见 `docs/github-readiness-and-distribution.md`
 
 ## 项目结构
 
@@ -41,7 +46,7 @@ src/harness/          # 核心代码
   llm.py              # BaseLLM + RuleBasedLLM / ScriptedLLM / DeepSeekLLM
   anthropic_llm.py    # AnthropicLLM 适配器（原生 tool_use）
   types.py            # 共享类型定义（LLMAction, RunResult 等）
-  coding_tools.py     # 编程工具（read_file, edit_file, run_bash）
+  coding_tools.py     # 编程工具（read_file, edit_file, write_file, run_bash, glob_files, grep_search, list_directory）
   memory.py           # 工作记忆与压缩
   context.py          # 项目上下文加载器（.hau/CONTEXT.md + git + 项目类型检测）
   session.py          # 会话管理 SessionManager
