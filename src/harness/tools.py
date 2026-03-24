@@ -12,10 +12,20 @@ class RetryableToolError(RuntimeError):
 
 
 class ToolDispatcher:
+    """Dispatches tool calls to registered callable implementations.
+
+    Built-in tools: ``echo``, ``add``, ``utc_now``, ``write_text_file``.
+    Additional tools can be registered at runtime via :meth:`register_tool`.
+
+    Args:
+        allowed_write_roots: List of absolute directory paths that
+            ``write_text_file`` is permitted to write into. Pass an empty
+            list or ``None`` to disable the tool entirely.
+    """
+
     def __init__(self, allowed_write_roots: list[str | Path] | None = None) -> None:
         self.allowed_write_roots = [
-            Path(root).expanduser().resolve()
-            for root in (allowed_write_roots or [])
+            Path(root).expanduser().resolve() for root in (allowed_write_roots or [])
         ]
         self._tools: Dict[str, Callable[[dict[str, Any]], Any]] = {}
         self.register_tool("echo", self._echo)
@@ -24,9 +34,28 @@ class ToolDispatcher:
         self.register_tool("write_text_file", self._write_text_file)
 
     def register_tool(self, name: str, tool: Callable[[dict[str, Any]], Any]) -> None:
+        """Register a custom tool callable under ``name``.
+
+        Args:
+            name: Tool identifier that the LLM will use in ``tool_name``.
+            tool: A callable that accepts a single ``arguments`` dict and
+                returns any JSON-serialisable value, or raises an exception
+                on failure.
+        """
         self._tools[name] = tool
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> ToolExecutionResult:
+        """Dispatch a tool call and return the execution result.
+
+        Args:
+            tool_name: Name of the tool to invoke.
+            arguments: Keyword arguments passed to the tool as a plain dict.
+
+        Returns:
+            A :class:`~harness.types.ToolExecutionResult` with ``ok=True`` on
+            success or ``ok=False`` (with ``error`` and ``retryable`` set) on
+            failure.
+        """
         tool = self._tools.get(tool_name)
         if tool is None:
             return ToolExecutionResult(ok=False, output=None, error=f"Unknown tool: {tool_name}")

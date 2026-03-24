@@ -6,6 +6,17 @@ from .types import TurnRecord
 
 
 class MemoryManager:
+    """Manages the working memory window sent to the LLM each turn.
+
+    Maintains a rolling window of recent turns and compresses older history
+    into a summary string that preserves tagged observations (``constraint:``,
+    ``todo:``, ``evidence:``).
+
+    Args:
+        max_history_turns: Number of most-recent turns included verbatim in
+            the working memory dict.
+    """
+
     def __init__(self, max_history_turns: int = 8) -> None:
         self.max_history_turns = max_history_turns
         self.summary: str = ""
@@ -13,6 +24,17 @@ class MemoryManager:
     def build_working_memory(
         self, goal: str, context: Dict[str, Any], turns: List[TurnRecord]
     ) -> Dict[str, Any]:
+        """Build the working memory dict for the current turn.
+
+        Args:
+            goal: The task goal string.
+            context: Extra context key/value pairs.
+            turns: Full turn history so far.
+
+        Returns:
+            A dict with keys ``goal``, ``context``, ``summary_memory``, and
+            ``history`` (the most recent ``max_history_turns`` turns).
+        """
         recent_turns = turns[-self.max_history_turns :]
         history = [
             {
@@ -55,6 +77,31 @@ class MemoryManager:
 
         self.summary = " || ".join(summary_parts)
         return True
+
+    def summarize_run(self, goal: str, turns: List[TurnRecord], stop_reason: str) -> str:
+        """Return a compact one-line summary of a completed run.
+
+        Suitable for accumulating cross-goal context in a persistent session.
+
+        Args:
+            goal: The task goal string.
+            turns: Full turn list from the completed run.
+            stop_reason: The stop reason from :class:`~harness.types.RunResult`.
+
+        Returns:
+            A short summary string with goal, stop reason, turn count, and any
+            tagged observations.
+        """
+        constraints = self._extract_tagged_observations(turns, "constraint:")
+        evidence = self._extract_tagged_observations(turns, "evidence:")
+
+        parts = [f"[Goal: {goal[:80]}] stop={stop_reason} turns={len(turns)}"]
+        if constraints:
+            parts.append(f"constraints: {'; '.join(constraints[:3])}")
+        if evidence:
+            parts.append(f"evidence: {'; '.join(evidence[:3])}")
+
+        return " | ".join(parts)
 
     @staticmethod
     def _extract_tagged_observations(turns: List[TurnRecord], prefix: str) -> List[str]:

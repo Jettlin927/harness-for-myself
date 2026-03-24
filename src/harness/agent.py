@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from .error_policy import ErrorPolicy
 from .llm import BaseLLM
@@ -17,6 +17,39 @@ from .types import RunResult, ToolExecutionResult, TurnRecord
 
 @dataclass
 class RunConfig:
+    """Configuration for a single agent run.
+
+    Attributes:
+        max_steps: Hard upper limit on the number of turns before the run is
+            terminated with ``stop_reason="max_steps_reached"``.
+        log_dir: Directory where JSONL trajectory logs are written.
+        max_history_turns: Number of most-recent turns to include verbatim in
+            the working memory sent to the LLM.
+        schema_retry_limit: How many times to retry the LLM in the same turn
+            when its output fails schema validation. ``1`` means one retry
+            attempt (two LLM calls total) before the turn is marked as a
+            schema error.
+        max_budget: Optional abstract budget counter. Each LLM call and each
+            tool attempt increments the counter by 1. The run stops with
+            ``stop_reason="max_budget_reached"`` when the counter exceeds
+            this value.
+        max_failures: Stop the run with ``stop_reason="max_failures_reached"``
+            after this many cumulative failures (schema errors + tool errors).
+            ``None`` disables the check.
+        tool_retry_limit: Maximum number of automatic retries for tool calls
+            that raise :class:`~harness.tools.RetryableToolError`. ``0``
+            means no retries.
+        snapshot_dir: Directory for per-turn snapshot JSON files. Falls back
+            to ``log_dir`` when ``None``.
+        dangerous_tools: Tool names whose identical calls are blocked after the
+            first execution to prevent unintended side-effect repetition.
+        goal_reached_token: When set, a final response that contains this
+            token (substring match) changes the stop reason to
+            ``"goal_reached"``.
+        allowed_write_roots: Absolute path prefixes that ``write_text_file``
+            is permitted to write into. An empty tuple disables the tool.
+    """
+
     max_steps: int = 8
     log_dir: str = "logs"
     max_history_turns: int = 8
@@ -31,6 +64,19 @@ class RunConfig:
 
 
 class HarnessAgent:
+    """Single-agent execution harness.
+
+    Orchestrates the ``memory → llm → tool/final → observe → next turn`` loop
+    with strict schema validation, reliability guardrails, and trajectory
+    logging.
+
+    Args:
+        llm: Any :class:`~harness.llm.BaseLLM` implementation that produces
+            structured action dicts.
+        config: Runtime configuration. Defaults to :class:`RunConfig` with
+            all default values when ``None``.
+    """
+
     def __init__(self, llm: BaseLLM, config: RunConfig | None = None) -> None:
         self.llm = llm
         self.config = config or RunConfig()
@@ -50,7 +96,23 @@ class HarnessAgent:
         context: Dict[str, Any] | None = None,
         *,
         resume_from: str | None = None,
+        on_turn: Callable[["TurnRecord"], None] | None = None,
     ) -> RunResult:
+        """Run the agent loop until a stop condition is met.
+
+        Args:
+            goal: Natural-language task description passed to the LLM each turn.
+            context: Optional key/value pairs injected into working memory.
+            resume_from: Path to a snapshot JSON file. When provided, the run
+                continues from the saved state rather than starting fresh.
+            on_turn: Optional callback invoked after each turn is recorded.
+                Receives the completed :class:`~harness.types.TurnRecord`.
+                Useful for streaming live output to a UI.
+
+        Returns:
+            A :class:`~harness.types.RunResult` with the final response, full
+            turn history, stop reason, log path, and latest snapshot path.
+        """
         state = self._load_state(goal=goal, context=context or {}, resume_from=resume_from)
         goal = state["goal"]
         context = state["context"]
@@ -97,6 +159,8 @@ class HarnessAgent:
                 )
                 turns.append(record)
                 logger.append(record)
+                if on_turn:
+                    on_turn(record)
                 snapshot_path = self._save_snapshot(
                     goal=goal,
                     context=context,
@@ -126,6 +190,8 @@ class HarnessAgent:
                 )
                 turns.append(record)
                 logger.append(record)
+                if on_turn:
+                    on_turn(record)
                 snapshot_path = self._save_snapshot(
                     goal=goal,
                     context=context,
@@ -165,6 +231,8 @@ class HarnessAgent:
             )
             turns.append(record)
             logger.append(record)
+            if on_turn:
+                on_turn(record)
             self.memory.maybe_compress(turns)
             snapshot_path = self._save_snapshot(
                 goal=goal,
@@ -187,6 +255,14 @@ class HarnessAgent:
         )
 
     def resume(self, snapshot_path: str) -> RunResult:
+        """Continue a previous run from a saved snapshot.
+
+        Args:
+            snapshot_path: Path to the snapshot JSON file produced by a prior run.
+
+        Returns:
+            A :class:`~harness.types.RunResult` continuing from the saved state.
+        """
         return self.run(goal="", context=None, resume_from=snapshot_path)
 
     def _generate_action_with_schema_retry(self, working_memory: Dict[str, Any]) -> Dict[str, Any]:

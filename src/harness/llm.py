@@ -10,7 +10,28 @@ from urllib.request import Request, urlopen
 
 
 class BaseLLM:
+    """Abstract base class for LLM backends.
+
+    Subclass this and implement :meth:`generate` to plug in any language model.
+    """
+
     def generate(self, working_memory: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate the next agent action.
+
+        Args:
+            working_memory: Dict produced by :class:`~harness.memory.MemoryManager`
+                containing ``goal``, ``context``, ``summary_memory``, ``history``,
+                and optionally ``schema_feedback``.
+
+        Returns:
+            A dict that conforms to one of the two action schemas::
+
+                {"type": "tool_call", "tool_name": "...", "arguments": {...}}
+                {"type": "final_response", "content": "..."}
+
+        Raises:
+            NotImplementedError: Must be overridden by subclasses.
+        """
         raise NotImplementedError
 
 
