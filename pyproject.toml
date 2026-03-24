@@ -1,11 +1,14 @@
 [project]
-name = "minimal-agent-harness"
+name = "hau"
 version = "0.1.0"
-description = "Minimal single-agent harness with reliability guardrails."
+description = "HAU — Harness for Yourself. A testable single-agent harness with strict schemas and reliability guardrails."
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 dependencies = ["rich>=13.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=9.0.2"]
 
 [project.scripts]
 harness = "harness.cli:main"
@@ -21,7 +24,3 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
-[dependency-groups]
-dev = [
-    "pytest>=9.0.2",
-]

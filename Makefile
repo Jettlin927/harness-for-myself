@@ -36,7 +36,7 @@ venv:
 	UV_CACHE_DIR="$(UV_CACHE_DIR)" XDG_DATA_HOME="$(XDG_DATA_HOME)" $(UV) venv .venv --python "$(PYTHON312)"
 
 install:
-	UV_CACHE_DIR="$(UV_CACHE_DIR)" $(UV) pip install "rich>=13.0" --python "$(VENV_PYTHON)"
+	UV_CACHE_DIR="$(UV_CACHE_DIR)" $(UV) pip install -e ".[dev]" --python "$(VENV_PYTHON)"
 
 fmt:
 	$(RUFF) format .
