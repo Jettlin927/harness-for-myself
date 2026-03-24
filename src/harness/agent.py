@@ -393,6 +393,7 @@ class HarnessAgent:
             "bash",
             "edit_file",
             "write_text_file",
+            "write_file",
         }
     )
 
@@ -468,5 +469,13 @@ class HarnessAgent:
             old = str(arguments.get("old_text", ""))[:50]
             return f"{path}: {old!r}"
         if tool_name == "write_text_file":
+            return str(arguments.get("path", ""))
+        if tool_name == "write_file":
+            return str(arguments.get("path", ""))
+        if tool_name == "glob_files":
+            return str(arguments.get("pattern", ""))
+        if tool_name == "grep_search":
+            return str(arguments.get("pattern", ""))
+        if tool_name == "list_directory":
             return str(arguments.get("path", ""))
         return str(arguments)

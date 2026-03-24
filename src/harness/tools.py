@@ -194,7 +194,15 @@ def register_coding_tools(
     allow_bash: bool = True,
 ) -> None:
     """Register coding tools (read_file, edit_file, bash) on the dispatcher."""
-    from .coding_tools import edit_file, read_file, run_bash
+    from .coding_tools import (
+        edit_file,
+        glob_files,
+        grep_search,
+        list_directory,
+        read_file,
+        run_bash,
+        write_file,
+    )
 
     dispatcher.register_tool(
         "read_file",
@@ -240,6 +248,91 @@ def register_coding_tools(
                 },
             },
             "required": ["path", "old_text", "new_text"],
+        },
+    )
+    dispatcher.register_tool(
+        "write_file",
+        write_file,
+        schema={
+            "type": "object",
+            "description": (
+                "Create a new file with the given content. "
+                "Refuses to overwrite existing files — use edit_file instead."
+            ),
+            "properties": {
+                "path": {"type": "string", "description": "Absolute file path for the new file"},
+                "content": {"type": "string", "description": "Content to write"},
+            },
+            "required": ["path", "content"],
+        },
+    )
+    dispatcher.register_tool(
+        "glob_files",
+        glob_files,
+        schema={
+            "type": "object",
+            "description": "Search for files matching a glob pattern",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Glob pattern (e.g. '**/*.py')",
+                },
+                "root": {
+                    "type": "string",
+                    "description": "Absolute path to the root directory",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results to return (default 100)",
+                },
+            },
+            "required": ["pattern", "root"],
+        },
+    )
+    dispatcher.register_tool(
+        "grep_search",
+        grep_search,
+        schema={
+            "type": "object",
+            "description": "Search file contents with regex",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Regex pattern to search for",
+                },
+                "root": {
+                    "type": "string",
+                    "description": "Absolute path to search root",
+                },
+                "include": {
+                    "type": "string",
+                    "description": "Glob filter for filenames (e.g. '*.py')",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max matches to return (default 50)",
+                },
+                "context_lines": {
+                    "type": "integer",
+                    "description": "Lines of context around each match (default 0)",
+                },
+            },
+            "required": ["pattern", "root"],
+        },
+    )
+    dispatcher.register_tool(
+        "list_directory",
+        list_directory,
+        schema={
+            "type": "object",
+            "description": "List directory contents with type annotations",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Absolute path to the directory",
+                },
+            },
+            "required": ["path"],
         },
     )
     if allow_bash:

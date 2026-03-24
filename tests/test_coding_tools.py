@@ -4,7 +4,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.harness.coding_tools import edit_file, read_file, run_bash
+from src.harness.coding_tools import (
+    edit_file,
+    glob_files,
+    grep_search,
+    list_directory,
+    read_file,
+    run_bash,
+    write_file,
+)
 
 
 class ReadFileTests(unittest.TestCase):
@@ -118,6 +126,46 @@ class EditFileTests(unittest.TestCase):
         self.assertEqual(p.read_text(encoding="utf-8"), "foo qux baz\n")
 
 
+class WriteFileTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp_dir.name)
+
+    def tearDown(self) -> None:
+        self.tmp_dir.cleanup()
+
+    def test_create_new_file(self) -> None:
+        p = self.root / "new.txt"
+        result = write_file({"path": str(p), "content": "hello world"})
+        self.assertEqual(result["bytes_written"], len("hello world".encode("utf-8")))
+        self.assertEqual(p.read_text(encoding="utf-8"), "hello world")
+
+    def test_creates_parent_dirs(self) -> None:
+        p = self.root / "a" / "b" / "c" / "deep.txt"
+        result = write_file({"path": str(p), "content": "nested"})
+        self.assertTrue(p.exists())
+        self.assertEqual(p.read_text(encoding="utf-8"), "nested")
+        self.assertIn("bytes_written", result)
+
+    def test_refuses_overwrite(self) -> None:
+        p = self.root / "existing.txt"
+        p.write_text("original", encoding="utf-8")
+        with self.assertRaises(ValueError) as ctx:
+            write_file({"path": str(p), "content": "overwrite"})
+        self.assertIn("edit_file", str(ctx.exception))
+
+    def test_relative_path_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            write_file({"path": "relative/file.txt", "content": "data"})
+        self.assertIn("absolute", str(ctx.exception))
+
+    def test_missing_path_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            write_file({"path": "", "content": "data"})
+        with self.assertRaises(ValueError):
+            write_file({"path": 123, "content": "data"})  # type: ignore[dict-item]
+
+
 class RunBashTests(unittest.TestCase):
     def test_echo_command(self) -> None:
         result = run_bash({"command": "echo hello"})
@@ -132,6 +180,151 @@ class RunBashTests(unittest.TestCase):
         result = run_bash({"command": "sleep 60", "timeout": 1})
         self.assertEqual(result["returncode"], -1)
         self.assertIn("timed out", result["stderr"])
+
+
+class GlobFilesTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp_dir.name)
+        # Create a small file tree
+        (self.root / "a.py").write_text("a", encoding="utf-8")
+        (self.root / "b.txt").write_text("b", encoding="utf-8")
+        sub = self.root / "sub"
+        sub.mkdir()
+        (sub / "c.py").write_text("c", encoding="utf-8")
+        (sub / "d.py").write_text("d", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self.tmp_dir.cleanup()
+
+    def test_basic_glob(self) -> None:
+        result = glob_files({"pattern": "*.py", "root": str(self.root)})
+        self.assertEqual(result["total"], 1)
+        self.assertIn("a.py", result["matches"][0])
+
+    def test_recursive_glob(self) -> None:
+        result = glob_files({"pattern": "**/*.py", "root": str(self.root)})
+        self.assertEqual(result["total"], 3)
+        self.assertFalse(result["truncated"])
+
+    def test_empty_match(self) -> None:
+        result = glob_files({"pattern": "*.rs", "root": str(self.root)})
+        self.assertEqual(result["total"], 0)
+        self.assertEqual(result["matches"], [])
+
+    def test_limit_truncation(self) -> None:
+        result = glob_files({"pattern": "**/*.py", "root": str(self.root), "limit": 2})
+        self.assertEqual(len(result["matches"]), 2)
+        self.assertTrue(result["truncated"])
+        self.assertEqual(result["total"], 3)
+
+    def test_relative_root_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            glob_files({"pattern": "*.py", "root": "relative/path"})
+        self.assertIn("absolute", str(ctx.exception))
+
+    def test_missing_root_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            glob_files({"pattern": "*.py", "root": str(self.root / "nonexistent")})
+        self.assertIn("not found", str(ctx.exception).lower())
+
+
+class GrepSearchTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp_dir.name)
+        (self.root / "hello.py").write_text("def hello():\n    return 42\n", encoding="utf-8")
+        (self.root / "world.txt").write_text("hello world\ngoodbye world\n", encoding="utf-8")
+        sub = self.root / "sub"
+        sub.mkdir()
+        (sub / "deep.py").write_text("# deep module\nimport os\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self.tmp_dir.cleanup()
+
+    def test_basic_search(self) -> None:
+        result = grep_search({"pattern": "hello", "root": str(self.root)})
+        self.assertGreaterEqual(result["total"], 2)
+        paths = [m["path"] for m in result["matches"]]
+        self.assertTrue(any("hello.py" in p for p in paths))
+
+    def test_include_filter(self) -> None:
+        result = grep_search({"pattern": "hello", "root": str(self.root), "include": "*.py"})
+        for m in result["matches"]:
+            self.assertTrue(m["path"].endswith(".py"))
+
+    def test_regex_pattern(self) -> None:
+        result = grep_search({"pattern": r"def \w+\(", "root": str(self.root)})
+        self.assertEqual(result["total"], 1)
+        self.assertIn("def hello()", result["matches"][0]["content"])
+
+    def test_no_matches(self) -> None:
+        result = grep_search({"pattern": "zzz_nonexistent", "root": str(self.root)})
+        self.assertEqual(result["total"], 0)
+
+    def test_limit_truncation(self) -> None:
+        result = grep_search({"pattern": ".", "root": str(self.root), "limit": 2})
+        self.assertEqual(len(result["matches"]), 2)
+        self.assertTrue(result["truncated"])
+
+    def test_binary_file_skipped(self) -> None:
+        binary_path = self.root / "data.bin"
+        binary_path.write_bytes(b"\x00\x01\x02\xff\xfe hello \x00")
+        result = grep_search({"pattern": "hello", "root": str(self.root)})
+        bin_matches = [m for m in result["matches"] if "data.bin" in m["path"]]
+        self.assertEqual(len(bin_matches), 0)
+
+    def test_context_lines(self) -> None:
+        result = grep_search({
+            "pattern": "return",
+            "root": str(self.root),
+            "context_lines": 1,
+        })
+        self.assertGreaterEqual(result["total"], 1)
+        match = result["matches"][0]
+        # context should include surrounding lines
+        self.assertIn("\n", match["content"])
+
+
+class ListDirectoryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp_dir.name)
+
+    def tearDown(self) -> None:
+        self.tmp_dir.cleanup()
+
+    def test_list_files_and_dirs(self) -> None:
+        (self.root / "file.txt").write_text("x", encoding="utf-8")
+        (self.root / "subdir").mkdir()
+        result = list_directory({"path": str(self.root)})
+        names = {e["name"] for e in result["entries"]}
+        self.assertIn("file.txt", names)
+        self.assertIn("subdir", names)
+        types = {e["name"]: e["type"] for e in result["entries"]}
+        self.assertEqual(types["file.txt"], "file")
+        self.assertEqual(types["subdir"], "directory")
+
+    def test_empty_directory(self) -> None:
+        result = list_directory({"path": str(self.root)})
+        self.assertEqual(result["entries"], [])
+
+    def test_relative_path_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            list_directory({"path": "relative/path"})
+        self.assertIn("absolute", str(ctx.exception))
+
+    def test_missing_path_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            list_directory({"path": str(self.root / "nonexistent")})
+        self.assertIn("not found", str(ctx.exception).lower())
+
+    def test_file_path_raises(self) -> None:
+        f = self.root / "afile.txt"
+        f.write_text("x", encoding="utf-8")
+        with self.assertRaises(ValueError) as ctx:
+            list_directory({"path": str(f)})
+        self.assertIn("not a directory", str(ctx.exception))
 
 
 if __name__ == "__main__":

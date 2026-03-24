@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -111,3 +112,152 @@ def run_bash(arguments: dict[str, Any]) -> Any:
             "stderr": f"Command timed out after {timeout}s",
             "returncode": -1,
         }
+
+
+def write_file(arguments: dict[str, Any]) -> Any:
+    """Create a new file with the given content. Refuses to overwrite existing files."""
+    path = arguments.get("path")
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError("write_file requires a non-empty string 'path'.")
+    if not Path(path).is_absolute():
+        raise ValueError("write_file requires an absolute 'path'.")
+
+    content = arguments.get("content")
+    if not isinstance(content, str):
+        raise ValueError("write_file requires a string 'content'.")
+
+    p = Path(path)
+    if p.exists():
+        raise ValueError(f"File already exists: {path} — use edit_file to modify existing files.")
+
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
+
+    return {"path": str(p.resolve()), "bytes_written": len(content.encode("utf-8"))}
+
+
+def glob_files(arguments: dict[str, Any]) -> Any:
+    """Search for files matching a glob pattern under a root directory."""
+    pattern = arguments.get("pattern")
+    if not isinstance(pattern, str) or not pattern.strip():
+        raise ValueError("glob_files requires a non-empty string 'pattern'.")
+
+    root = arguments.get("root")
+    if not isinstance(root, str) or not root.strip():
+        raise ValueError("glob_files requires a non-empty string 'root'.")
+    if not Path(root).is_absolute():
+        raise ValueError("glob_files requires an absolute 'root'.")
+
+    root_path = Path(root)
+    if not root_path.exists():
+        raise ValueError(f"Root directory not found: {root}")
+    if not root_path.is_dir():
+        raise ValueError(f"Root is not a directory: {root}")
+
+    limit = arguments.get("limit", 100)
+    matches = sorted(str(p) for p in root_path.glob(pattern))
+    total = len(matches)
+    truncated = total > limit
+    return {
+        "matches": matches[:limit],
+        "total": total,
+        "truncated": truncated,
+    }
+
+
+def grep_search(arguments: dict[str, Any]) -> Any:
+    """Search file contents for lines matching a regex pattern."""
+    pattern = arguments.get("pattern")
+    if not isinstance(pattern, str) or not pattern.strip():
+        raise ValueError("grep_search requires a non-empty string 'pattern'.")
+
+    root = arguments.get("root")
+    if not isinstance(root, str) or not root.strip():
+        raise ValueError("grep_search requires a non-empty string 'root'.")
+    if not Path(root).is_absolute():
+        raise ValueError("grep_search requires an absolute 'root'.")
+
+    root_path = Path(root)
+    if not root_path.exists():
+        raise ValueError(f"Root directory not found: {root}")
+
+    include = arguments.get("include")
+    limit = arguments.get("limit", 50)
+    context_lines = arguments.get("context_lines", 0)
+
+    _SKIP_DIRS = {".git", "node_modules", "__pycache__"}
+
+    try:
+        regex = re.compile(pattern)
+    except re.error as exc:
+        raise ValueError(f"Invalid regex pattern: {exc}") from exc
+
+    matches: list[dict[str, Any]] = []
+
+    def _walk(directory: Path) -> None:
+        try:
+            entries = sorted(directory.iterdir())
+        except PermissionError:
+            return
+        for entry in entries:
+            if entry.is_dir():
+                if entry.name not in _SKIP_DIRS:
+                    _walk(entry)
+            elif entry.is_file():
+                if include and not entry.match(include):
+                    continue
+                _search_file(entry)
+            if len(matches) >= limit:
+                return
+
+    def _search_file(file_path: Path) -> None:
+        try:
+            lines = file_path.read_text(encoding="utf-8").splitlines()
+        except (UnicodeDecodeError, PermissionError):
+            return
+        for i, line in enumerate(lines):
+            if len(matches) >= limit:
+                return
+            if regex.search(line):
+                if context_lines > 0:
+                    start = max(0, i - context_lines)
+                    end = min(len(lines), i + context_lines + 1)
+                    content = "\n".join(lines[start:end])
+                else:
+                    content = line
+                matches.append({
+                    "path": str(file_path),
+                    "line": i + 1,
+                    "content": content,
+                })
+
+    _walk(root_path)
+    total = len(matches)
+    truncated = total >= limit
+    return {
+        "matches": matches[:limit],
+        "total": total,
+        "truncated": truncated,
+    }
+
+
+def list_directory(arguments: dict[str, Any]) -> Any:
+    """List entries in a directory, annotating each as file or directory."""
+    path = arguments.get("path")
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError("list_directory requires a non-empty string 'path'.")
+    if not Path(path).is_absolute():
+        raise ValueError("list_directory requires an absolute 'path'.")
+
+    p = Path(path)
+    if not p.exists():
+        raise ValueError(f"Directory not found: {path}")
+    if not p.is_dir():
+        raise ValueError(f"Path is not a directory: {path}")
+
+    entries = []
+    for entry in sorted(p.iterdir(), key=lambda e: e.name):
+        entry_type = "directory" if entry.is_dir() else "file"
+        entries.append({"name": entry.name, "type": entry_type})
+
+    return {"entries": entries}
