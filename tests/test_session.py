@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 
-from harness.session import SessionManager, SessionState, _MAX_SUMMARY_ENTRIES
-
+from harness.session import _MAX_SUMMARY_ENTRIES, SessionManager
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
@@ -97,7 +95,7 @@ def test_update_caps_summary_entries(tmp_mgr: SessionManager) -> None:
         tmp_mgr.update(state, goal=f"目标 {i}", stop_reason="final_response", turns=1)
 
     # Summary should only reference the most recent _MAX_SUMMARY_ENTRIES entries
-    lines = [l for l in state.accumulated_summary.splitlines() if l.strip()]
+    lines = [line for line in state.accumulated_summary.splitlines() if line.strip()]
     assert len(lines) == _MAX_SUMMARY_ENTRIES
 
 

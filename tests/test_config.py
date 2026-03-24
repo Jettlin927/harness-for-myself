@@ -3,9 +3,8 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
-from pathlib import Path
 
-from src.harness import HarnessAgent, RunConfig, RuleBasedLLM
+from src.harness import HarnessAgent, RuleBasedLLM, RunConfig
 from src.harness.config import StrategyConfig
 from src.harness.eval import EvalCase, EvalRunner
 

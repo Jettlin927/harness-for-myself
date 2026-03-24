@@ -71,17 +71,32 @@ class SessionManager:
 
     def latest(self) -> SessionState | None:
         """Return the most recently modified session, or ``None`` if none exist."""
-        files = sorted(self.session_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        files = sorted(
+            self.session_dir.glob("*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
         if not files:
             return None
         return self._load(files[0])
 
     def list_sessions(self) -> List[SessionState]:
         """Return all sessions sorted by creation time (newest first)."""
-        files = sorted(self.session_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        files = sorted(
+            self.session_dir.glob("*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
         return [self._load(f) for f in files]
 
-    def update(self, state: SessionState, goal: str, stop_reason: str, turns: int, snapshot_path: str | None = None) -> SessionState:
+    def update(
+        self,
+        state: SessionState,
+        goal: str,
+        stop_reason: str,
+        turns: int,
+        snapshot_path: str | None = None,
+    ) -> SessionState:
         """Append a completed goal to the session and refresh the summary.
 
         Args:
