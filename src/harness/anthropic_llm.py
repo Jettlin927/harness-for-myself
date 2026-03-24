@@ -48,6 +48,7 @@ class AnthropicLLM(BaseLLM):
         self.tool_schemas = tool_schemas or []
         self.api_key = self._resolve_api_key(api_key)
         self._client = anthropic.Anthropic(api_key=self.api_key)
+        self.extra_instructions: str = ""
 
     def set_tool_schemas(self, schemas: list[dict[str, Any]]) -> None:
         """Update tool schemas after initialization."""
@@ -55,7 +56,11 @@ class AnthropicLLM(BaseLLM):
 
     def generate(self, working_memory: Dict[str, Any]) -> Dict[str, Any]:
         tool_names = [s["name"] for s in self.tool_schemas]
-        system_prompt = build_system_prompt(tool_names, native_tool_use=True)
+        system_prompt = build_system_prompt(
+            tool_names,
+            native_tool_use=True,
+            extra_system_instructions=self.extra_instructions,
+        )
         messages = self._build_messages(working_memory)
 
         kwargs: dict[str, Any] = {

@@ -11,7 +11,12 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
-def build_system_prompt(tool_names: list[str], *, native_tool_use: bool = False) -> str:
+def build_system_prompt(
+    tool_names: list[str],
+    *,
+    native_tool_use: bool = False,
+    extra_system_instructions: str = "",
+) -> str:
     """Build the system prompt shared by all LLM backends.
 
     Args:
@@ -19,6 +24,8 @@ def build_system_prompt(tool_names: list[str], *, native_tool_use: bool = False)
         native_tool_use: When True (Anthropic), omit JSON format instructions
             since the SDK handles tool_use natively. When False (DeepSeek etc.),
             include explicit JSON output format requirements.
+        extra_system_instructions: Additional instructions appended to the prompt
+            (e.g., from an AgentDefinition's system_instructions field).
     """
     tools_desc = ", ".join(tool_names) if tool_names else "(none)"
 
@@ -100,6 +107,26 @@ def build_system_prompt(tool_names: list[str], *, native_tool_use: bool = False)
             "discoveries (project conventions, test commands, architecture decisions). Use "
             "recall_memory to retrieve previously saved knowledge."
             if "save_memory" in tool_names and "recall_memory" in tool_names
+            else ""
+        )
+        + (
+            "\n\n## Sub-Agents\n"
+            "Use spawn_agent to delegate sub-tasks to specialized child agents. "
+            "The child runs to completion and returns a summary. "
+            "Check the context for available agent definitions."
+            if "spawn_agent" in tool_names
+            else ""
+        )
+        + (
+            "\n\n## Skills\n"
+            "Use use_skill to look up reusable prompt templates for common tasks. "
+            "Check the context for available skills."
+            if "use_skill" in tool_names
+            else ""
+        )
+        + (
+            f"\n\n## Additional Instructions\n{extra_system_instructions}"
+            if extra_system_instructions
             else ""
         )
     )
