@@ -1,0 +1,9 @@
+{
+  "version": "v1.0",
+  "description": "Baseline strategy — mirrors RunConfig defaults. Use as regression anchor.",
+  "max_steps": 8,
+  "max_budget": null,
+  "max_failures": 3,
+  "max_history_turns": 8,
+  "goal_reached_token": null
+}

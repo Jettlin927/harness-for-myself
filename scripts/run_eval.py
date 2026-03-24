@@ -36,28 +36,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.harness import HarnessAgent, RuleBasedLLM, RunConfig  # noqa: E402
-from src.harness.eval import EvalCase, EvalRunner  # noqa: E402
-
-BUILTIN_CASES: list[dict] = [
-    {
-        "id": "add_numbers",
-        "goal": "please add numbers",
-        "expected_stop_reason": "final_response",
-        "expected_keywords": ["5"],
-    },
-    {
-        "id": "get_time",
-        "goal": "what is the current time",
-        "expected_stop_reason": "final_response",
-        "expected_keywords": [],
-    },
-    {
-        "id": "direct_answer",
-        "goal": "hello world",
-        "expected_stop_reason": "final_response",
-        "expected_keywords": [],
-    },
-]
+from src.harness.eval import BUILTIN_CASES, EvalCase, EvalRunner  # noqa: E402
 
 
 def load_cases(path: str | None) -> list[EvalCase]:
@@ -105,16 +84,16 @@ def main() -> None:
 
     if args.output:
         Path(args.output).write_text(output_json, encoding="utf-8")
-        print(f"报告已写入: {args.output}")
+        print(f"Report saved to: {args.output}")
     else:
         print(output_json)
 
     # Print summary to stderr so it always shows even when piping JSON
     print(
-        f"\n结果: {report.passed}/{report.total} 通过  "
-        f"通过率={report.pass_rate:.0%}  "
-        f"平均步数={report.avg_turns:.1f}  "
-        f"平均耗时={report.avg_duration_s:.3f}s",
+        f"\nResult: {report.passed}/{report.total} passed  "
+        f"pass_rate={report.pass_rate:.0%}  "
+        f"avg_turns={report.avg_turns:.1f}  "
+        f"avg_duration={report.avg_duration_s:.3f}s",
         file=sys.stderr,
     )
 

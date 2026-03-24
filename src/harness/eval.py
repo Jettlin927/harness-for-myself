@@ -6,6 +6,28 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
 
+# Built-in regression cases bundled with the library.
+BUILTIN_CASES: List[Dict[str, Any]] = [
+    {
+        "id": "add_numbers",
+        "goal": "please add numbers",
+        "expected_stop_reason": "final_response",
+        "expected_keywords": ["5"],
+    },
+    {
+        "id": "get_time",
+        "goal": "what is the current time",
+        "expected_stop_reason": "final_response",
+        "expected_keywords": [],
+    },
+    {
+        "id": "direct_answer",
+        "goal": "hello world",
+        "expected_stop_reason": "final_response",
+        "expected_keywords": [],
+    },
+]
+
 
 @dataclass
 class EvalCase:
@@ -63,6 +85,8 @@ class EvalReport:
         avg_turns: Average number of turns across all cases.
         avg_duration_s: Average wall-clock duration per case.
         results: Per-case results.
+        config_version: Version tag from the :class:`~harness.config.StrategyConfig`
+            used for this run, or ``"unversioned"`` when no config was supplied.
     """
 
     total: int
@@ -72,6 +96,7 @@ class EvalReport:
     avg_turns: float
     avg_duration_s: float
     results: List[EvalCaseResult]
+    config_version: str = "unversioned"
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to a plain dict suitable for JSON output."""
@@ -107,11 +132,15 @@ class EvalRunner:
         """
         self.agent = agent
 
-    def run(self, cases: List[EvalCase]) -> EvalReport:
+    def run(self, cases: List[EvalCase], config_version: str = "unversioned") -> EvalReport:
         """Run all cases and return an aggregated :class:`EvalReport`.
 
         Args:
             cases: List of eval cases to execute.
+            config_version: Version tag to embed in the report so results from
+                different strategy versions can be compared.  Pass
+                ``StrategyConfig.version`` here when running with a versioned
+                config.
 
         Returns:
             An :class:`EvalReport` with per-case results and aggregate metrics.
@@ -134,6 +163,7 @@ class EvalRunner:
             avg_turns=avg_turns,
             avg_duration_s=avg_duration,
             results=results,
+            config_version=config_version,
         )
 
     def _run_case(self, case: EvalCase) -> EvalCaseResult:
