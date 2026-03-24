@@ -9,6 +9,7 @@ dependencies = ["rich>=13.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=9.0.2"]
+anthropic = ["anthropic>=0.40"]
 
 [project.scripts]
 harness = "harness.cli:main"

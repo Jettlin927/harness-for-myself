@@ -9,6 +9,19 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
+def build_system_prompt(tool_names: list[str]) -> str:
+    """Build the system prompt shared by all LLM backends."""
+    tools_desc = ", ".join(tool_names) if tool_names else "(none)"
+    return (
+        "You are the LLM engine inside a tool-using agent harness. "
+        "Return JSON only. "
+        "Use exactly one of these shapes: "
+        '{"type":"tool_call","tool_name":"<tool>","arguments":{...}} '
+        'or {"type":"final_response","content":"<answer>"}. '
+        f"Available tools: {tools_desc}."
+    )
+
+
 class BaseLLM:
     """Abstract base class for LLM backends.
 
@@ -174,19 +187,17 @@ class DeepSeekLLM(BaseLLM):
         self.env_path.write_text("\n".join(next_lines).rstrip() + "\n", encoding="utf-8")
 
     def _build_messages(self, working_memory: Dict[str, Any]) -> List[Dict[str, str]]:
-        system_prompt = (
-            "You are the LLM engine inside a tool-using agent harness. "
-            "Return JSON only. "
-            "Use exactly one of these shapes: "
-            '{"type":"tool_call","tool_name":"<tool>","arguments":{...}} '
-            'or {"type":"final_response","content":"<answer>"}. '
-            "Available tools: echo(text), add(a,b), utc_now(), "
-            "write_text_file(path, content), "
-            "read_file(path, offset?, limit?) for reading file contents, "
-            "edit_file(path, old_text, new_text) for precise text replacement, "
-            "bash(command, timeout?) for running shell commands."
+        tool_names = [
+            "echo(text)", "add(a,b)", "utc_now()",
+            "write_text_file(path, content)",
+            "read_file(path, offset?, limit?)",
+            "edit_file(path, old_text, new_text)",
+            "bash(command, timeout?)",
+        ]
+        system_prompt = build_system_prompt(tool_names)
+        user_prompt = json.dumps(
+            working_memory, ensure_ascii=False, indent=2,
         )
-        user_prompt = json.dumps(working_memory, ensure_ascii=False, indent=2)
         return [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},

@@ -3,7 +3,7 @@
 from .agent import HarnessAgent, RunConfig
 from .config import StrategyConfig
 from .eval import EvalCase, EvalReport, EvalRunner
-from .llm import DeepSeekLLM, RuleBasedLLM, ScriptedLLM
+from .llm import DeepSeekLLM, RuleBasedLLM, ScriptedLLM, build_system_prompt
 from .session import SessionManager, SessionState
 from .tools import RetryableToolError
 
@@ -14,6 +14,7 @@ __all__ = [
     "RuleBasedLLM",
     "ScriptedLLM",
     "DeepSeekLLM",
+    "build_system_prompt",
     "RetryableToolError",
     "EvalCase",
     "EvalRunner",
@@ -21,3 +22,10 @@ __all__ = [
     "SessionManager",
     "SessionState",
 ]
+
+try:
+    from .anthropic_llm import AnthropicLLM  # noqa: F401
+
+    __all__.append("AnthropicLLM")
+except ImportError:
+    pass

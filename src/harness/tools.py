@@ -181,7 +181,57 @@ def register_coding_tools(
     """Register coding tools (read_file, edit_file, bash) on the dispatcher."""
     from .coding_tools import edit_file, read_file, run_bash
 
-    dispatcher.register_tool("read_file", read_file)
-    dispatcher.register_tool("edit_file", edit_file)
+    dispatcher.register_tool("read_file", read_file, schema={
+        "type": "object",
+        "description": "Read file contents with line numbers",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Absolute file path",
+            },
+            "offset": {
+                "type": "integer",
+                "description": "Starting line number (default 1)",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Max lines to read (default 200)",
+            },
+        },
+        "required": ["path"],
+    })
+    dispatcher.register_tool("edit_file", edit_file, schema={
+        "type": "object",
+        "description": "Replace exact text in a file",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Absolute file path",
+            },
+            "old_text": {
+                "type": "string",
+                "description": "Text to find (must match exactly once)",
+            },
+            "new_text": {
+                "type": "string",
+                "description": "Replacement text",
+            },
+        },
+        "required": ["path", "old_text", "new_text"],
+    })
     if allow_bash:
-        dispatcher.register_tool("bash", run_bash)
+        dispatcher.register_tool("bash", run_bash, schema={
+            "type": "object",
+            "description": "Run a shell command",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "Shell command to execute",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 30)",
+                },
+            },
+            "required": ["command"],
+        })

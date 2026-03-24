@@ -90,5 +90,58 @@ class ToolDispatcherTests(unittest.TestCase):
         self.assertIn("non-empty string 'path'", result.error or "")
 
 
+class ToolSchemaTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dispatcher = ToolDispatcher()
+
+    def test_register_tool_with_schema(self) -> None:
+        schema = {
+            "type": "object",
+            "description": "A test tool",
+            "properties": {"x": {"type": "integer"}},
+            "required": ["x"],
+        }
+        self.dispatcher.register_tool(
+            "test_tool", lambda args: args, schema=schema,
+        )
+        self.assertIn("test_tool", self.dispatcher._schemas)
+        self.assertEqual(self.dispatcher._schemas["test_tool"], schema)
+
+    def test_register_tool_without_schema(self) -> None:
+        self.dispatcher.register_tool("bare", lambda args: args)
+        self.assertNotIn("bare", self.dispatcher._schemas)
+
+    def test_get_tool_schemas_format(self) -> None:
+        schemas = self.dispatcher.get_tool_schemas()
+        self.assertIsInstance(schemas, list)
+        for entry in schemas:
+            self.assertIn("name", entry)
+            self.assertIn("description", entry)
+            self.assertIn("input_schema", entry)
+
+    def test_builtin_tools_have_schemas(self) -> None:
+        expected = {"echo", "add", "utc_now", "write_text_file"}
+        schema_names = {s["name"] for s in self.dispatcher.get_tool_schemas()}
+        self.assertTrue(
+            expected.issubset(schema_names),
+            f"Missing schemas: {expected - schema_names}",
+        )
+
+    def test_get_tool_schemas_returns_correct_count(self) -> None:
+        initial_count = len(self.dispatcher.get_tool_schemas())
+        self.dispatcher.register_tool(
+            "new_tool",
+            lambda args: args,
+            schema={
+                "type": "object",
+                "description": "New",
+                "properties": {},
+            },
+        )
+        self.assertEqual(
+            len(self.dispatcher.get_tool_schemas()), initial_count + 1,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
