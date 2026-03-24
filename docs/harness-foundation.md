@@ -58,3 +58,4 @@ To keep the loop stable, always include:
 - `step2-reliability-layer.md`: Step 2 reliability decisions, guardrails, and verification notes.
 - `uv-local-setup.md`: local Python/venv setup and run commands with `uv`.
 - `deepseek-entrypoint.md`: DeepSeek API runtime entrypoint and API-key flow.
+- `github-readiness-and-distribution.md`: GitHub publishing checklist and distribution strategy.

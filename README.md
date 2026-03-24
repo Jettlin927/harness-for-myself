@@ -1,6 +1,6 @@
-# Minimal Agent Harness
+# HAU — Harness for Yourself
 
-A minimal, testable single-agent harness with strict schemas and reliability guardrails.
+A testable single-agent harness with strict schemas and reliability guardrails.
 
 This project is an MVP for a deterministic-ish agent loop. It focuses on a narrow but solid core:
 
@@ -39,6 +39,8 @@ This repository is intentionally scoped. It does not currently aim to provide:
 
 ### 1. Create the local environment
 
+First-time setup takes 3–5 minutes (downloads Python 3.12 and dependencies).
+
 ```bash
 make setup
 ```
@@ -72,6 +74,15 @@ Equivalent command:
 
 ```bash
 ./.venv/bin/python scripts/run_mvp.py "please add numbers"
+```
+
+Expected output:
+
+```
+final_response: The sum of 2 and 3 is 5.
+stop_reason:    final_response
+turns:          2
+log_path:       logs/run_20260324_120000.jsonl
 ```
 
 ## Run With DeepSeek
@@ -123,23 +134,51 @@ make chat LLM=deepseek         # 使用 DeepSeek API
 
 ## CLI（脚本模式）
 
-安装后可直接使用 `harness` 命令（需通过 `uv pip install -e .` 或等效方式安装）：
+`make setup` 安装完成后可直接使用 `harness` 命令：
 
 ```bash
 # 单次运行
 harness run "please add numbers"
 harness run "what is the time" --llm rule --max-steps 4
 
+# 使用版本化策略配置文件运行
+harness run "please add numbers" --config configs/default.json
+
 # 多轮交互 TUI
 harness chat
 harness chat --llm deepseek --api-key sk-...
+
+# 批量评估
+harness eval
+harness eval --cases my_cases.json --output report.json
+harness eval --config configs/default.json
 
 # 从快照恢复
 harness resume logs/snapshot_20260101_120000.json
 
 # 查看帮助
 harness --help
-harness chat --help
+harness eval --help
+```
+
+## 版本化策略配置
+
+`configs/` 目录存放 JSON 策略文件，每个文件有 `version` 标签。通过固定 config 文件运行评估，可以跨版本对比性能：
+
+```bash
+# 用 v1 基线跑回归
+harness eval --config configs/default.json --output reports/v1.json
+
+# 修改参数后创建 v2 并对比
+cp configs/default.json configs/v2.json
+# 编辑 v2.json 修改参数
+harness eval --config configs/v2.json --output reports/v2.json
+```
+
+报告中包含 `config_version` 字段，方便对比：
+
+```json
+{ "config_version": "v1.0", "pass_rate": 1.0, "avg_turns": 2.0, ... }
 ```
 
 ## 评估框架
@@ -255,12 +294,21 @@ This repository includes a checked-in `.env.example` but ignores local secrets a
 
 MIT — see [LICENSE](LICENSE).
 
+## Roadmap
+
+This project is intentionally minimal. Planned next steps:
+
+- provider plugins (OpenAI, local Ollama)
+- richer tool ecosystem
+- multi-turn eval with inter-turn context checking
+- PyPI publishing (`pip install hau`)
+
 ## Development Status
 
-Current status:
+All three phases of the build plan are complete:
 
-- Step 1 completed: loop MVP
-- Step 2 completed: reliability layer
-- Step 3 completed: CLI, eval framework, CI, docstrings
+- Step 1: loop MVP — single-agent self-loop, tool dispatcher, trajectory logging
+- Step 2: reliability layer — stop guards, error routing, snapshots, resume, idempotency
+- Step 3: ops & evolution — eval runner, benchmark suite, versioned configs, CLI
 
 The current direction is to preserve deterministic, strongly constrained, testable evolution before adding more autonomy or complexity.

@@ -82,10 +82,10 @@
 - 发布闸门：未通过回归不升级默认策略。
 
 ### 交付物
-- `evaluation runner`（离线回归执行器）。
-- `benchmark suite`（基础任务集 + 期望结果）。
+- `evaluation runner`（离线回归执行器）。✅ `src/harness/eval.py` + `scripts/run_eval.py`
+- `benchmark suite`（基础任务集 + 期望结果）。✅ 内置用例集，支持自定义 JSON 用例文件
 - `versioned configs`（策略与参数版本管理）。
-- 最小可观测看板（哪怕先是命令行报表）。
+- 最小可观测看板（哪怕先是命令行报表）。✅ `EvalReport` 命令行汇总（pass_rate、耗时、失败详情）
 
 ### 验收标准
 - 任意一次改动可回答：性能是否变好、成本是否可接受、是否引入回退。
@@ -109,3 +109,4 @@
 ## 进展文档
 - `step1-execution-log.md`: Step 1 implementation and verification baseline.
 - `step2-reliability-layer.md`: Step 2 reliability layer — completed.
+- Step 3 全部完成：eval runner ✅、benchmark suite ✅、命令行报表 ✅、versioned configs ✅（`src/harness/config.py` + `configs/default.json` + `harness eval --config`）。

@@ -24,8 +24,8 @@
 建议补充：
 
 - `.env.example`
-- `LICENSE`
-- `CONTRIBUTING.md`
+- `LICENSE` ✅ 已添加（MIT）
+- `CONTRIBUTING.md` ✅ 已添加
 - `CHANGELOG.md`（哪怕先从 `0.1.0` 开始）
 
 ### 2. README 需要更像“开源首页”
@@ -129,11 +129,11 @@
 
 1. 补 `LICENSE`
 2. 补 `.env.example`
-3. 补一个正式 CLI 入口，而不是只保留 `scripts/*.py`
+3. 补一个正式 CLI 入口，而不是只保留 `scripts/*.py` ✅ `harness` CLI 已通过 `pyproject.toml` 注册
 4. README 增加最小 demo 输入/输出示例
 5. 去掉入口脚本里的 `sys.path` 注入，改为安装后执行
 6. 明确日志、输出、快照目录策略
-7. 在 GitHub Actions 上跑测试和 lint
+7. 在 GitHub Actions 上跑测试和 lint ✅ `.github/workflows/ci.yml` 已配置
 
 ## 日志与输出目录的分发建议
 
@@ -158,7 +158,7 @@
 
 建议把项目描述成：
 
-> A minimal, testable single-agent harness with strict schemas and reliability guardrails.
+> HAU — Harness for Yourself. A testable single-agent harness with strict schemas and reliability guardrails.
 
 这个定位比“通用 agent framework”更可信，也更符合当前完成度。
 

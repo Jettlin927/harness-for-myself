@@ -21,14 +21,30 @@ UV_CACHE_DIR="$PWD/.uv-cache" ~/.local/bin/uv venv .venv --python 3.12
 ```
 
 ## 启动项目
-直接运行演示脚本：
 
+### CLI（推荐，安装后可直接使用）
 ```bash
-./.venv/bin/python scripts/run_mvp.py "please add numbers"
+uv pip install -e .       # 安装 harness CLI
+
+harness run "please add numbers"
+harness chat              # 多轮交互 TUI
+harness chat --llm deepseek --api-key sk-...
+harness resume logs/snapshot_20260101_120000.json
 ```
 
-也可以直接用 `Makefile`：
+### 交互式多轮对话脚本
+```bash
+./.venv/bin/python scripts/run_chat.py             # rule-based LLM，免 API Key
+./.venv/bin/python scripts/run_chat.py --llm deepseek
+```
 
+### 单次运行脚本
+```bash
+./.venv/bin/python scripts/run_mvp.py "please add numbers"
+./.venv/bin/python scripts/run_mvp.py "what time is it" --max-steps 5 --context '{"user":"jett"}'
+```
+
+### Makefile 常用命令
 ```bash
 make setup
 make fmt
@@ -36,22 +52,21 @@ make lint
 make smoke
 make test
 make check
+make eval
+make chat
 make run GOAL="please add numbers"
-```
-
-带上下文运行：
-
-```bash
-./.venv/bin/python scripts/run_mvp.py "what time is it" --max-steps 5 --context '{"user":"jett"}'
+make run-deepseek GOAL="帮我写一首诗并保存到本地 txt"
 ```
 
 ## 测试
 ```bash
+uv run python -m pytest
+# 或
 ./.venv/bin/python -m unittest discover -s tests -p "test_*.py"
 ```
 
 ## 说明
-- 当前项目没有额外第三方依赖，所以创建虚拟环境后即可运行。
+- 开发依赖（`pytest` 等）通过 `uv pip install -e ".[dev]"` 安装，或由 `make setup` 自动处理。
 - 如果后续引入依赖，优先继续使用 `uv` 管理，并把安装方式补充到本文件。
 - `make clean` 会删除 `.venv`、`.uv-cache`、`.uv-python`，属于本地重置命令，执行前确认没有需要保留的本地环境。
 - `make fmt` 和 `make lint` 通过 `uv` 调用 Ruff；首次运行时如果本地还没有 Ruff，`uv` 会自动拉取。

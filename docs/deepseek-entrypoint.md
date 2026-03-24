@@ -6,13 +6,22 @@
 - 如果当前环境没有 key，则在终端里向用户索要
 
 ## 当前入口
+
+推荐使用多轮交互入口：
+
 ```bash
-make run-deepseek GOAL="帮我写一首诗并保存到本地 txt"
+make chat LLM=deepseek
+# 或
+./.venv/bin/python scripts/run_chat.py --llm deepseek
+# 或
+harness chat --llm deepseek --api-key sk-...
 ```
 
-等价脚本：
+单次运行：
 
 ```bash
+make run-deepseek GOAL="帮我写一首诗并保存到本地 txt"
+# 或
 ./.venv/bin/python scripts/run_deepseek.py "帮我写一首诗并保存到本地 txt"
 ```
 
