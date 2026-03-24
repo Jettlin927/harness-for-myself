@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any, Callable, Dict, List
 
 from .error_policy import ErrorPolicy
@@ -65,6 +66,7 @@ class RunConfig:
     allow_bash: bool = True
     max_tokens_budget: int | None = None
     trust_level: str = "ask"
+    agent_depth: int = 0
 
 
 class HarnessAgent:
@@ -93,6 +95,67 @@ class HarnessAgent:
                 allow_bash=self.config.allow_bash,
                 project_root=self.config.project_root,
             )
+        # Load agent/skill definitions and register spawn/skill tools
+        if self.config.project_root and self.config.agent_depth < 3:
+            from .definitions import load_agent_definitions, load_skill_definitions
+            from .subagent import SubAgentSpawner, create_use_skill_callable
+
+            hau_dir = Path(self.config.project_root) / ".hau"
+            agent_defs = load_agent_definitions(hau_dir)
+            skill_defs = load_skill_definitions(hau_dir)
+
+            self._spawner = SubAgentSpawner(
+                parent_config=self.config,
+                parent_llm=self.llm,
+                agent_definitions=agent_defs,
+            )
+            self.tools.register_tool(
+                "spawn_agent",
+                self._spawner,
+                schema={
+                    "type": "object",
+                    "description": (
+                        "Spawn a child agent to work on a sub-task. "
+                        "Runs to completion and returns a summary."
+                    ),
+                    "properties": {
+                        "goal": {
+                            "type": "string",
+                            "description": "Task for the child agent",
+                        },
+                        "agent": {
+                            "type": "string",
+                            "description": "Name of a defined agent (optional)",
+                        },
+                        "max_steps": {
+                            "type": "integer",
+                            "description": "Override max steps for child",
+                        },
+                    },
+                    "required": ["goal"],
+                },
+            )
+
+            if skill_defs:
+                use_skill_fn = create_use_skill_callable(skill_defs)
+                self.tools.register_tool(
+                    "use_skill",
+                    use_skill_fn,
+                    schema={
+                        "type": "object",
+                        "description": (
+                            "Look up a skill template by name and return its instructions."
+                        ),
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Skill name",
+                            },
+                        },
+                        "required": ["name"],
+                    },
+                )
+
         if hasattr(self.llm, "set_tool_schemas"):
             self.llm.set_tool_schemas(self.tools.get_tool_schemas())
         self.memory = MemoryManager(max_history_turns=self.config.max_history_turns)
@@ -132,6 +195,9 @@ class HarnessAgent:
             turn history, stop reason, log path, and latest snapshot path.
         """
         self.llm.on_token = on_token
+        if hasattr(self, "_spawner"):
+            self._spawner.set_approve_callback(on_approve)
+            self._spawner._project_context = context or {}
         state = self._load_state(goal=goal, context=context or {}, resume_from=resume_from)
         goal = state["goal"]
         context = state["context"]
@@ -399,6 +465,7 @@ class HarnessAgent:
             "write_text_file",
             "write_file",
             "save_memory",
+            "spawn_agent",
         }
     )
 
@@ -483,4 +550,8 @@ class HarnessAgent:
             return str(arguments.get("pattern", ""))
         if tool_name == "list_directory":
             return str(arguments.get("path", ""))
+        if tool_name == "spawn_agent":
+            return str(arguments.get("goal", ""))
+        if tool_name == "use_skill":
+            return str(arguments.get("name", ""))
         return str(arguments)
