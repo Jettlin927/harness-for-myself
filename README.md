@@ -105,6 +105,83 @@ If the key is entered interactively, the current implementation writes it back t
 
 The DeepSeek entrypoint also enables `write_text_file` and restricts writes to `~/Desktop/test` by default.
 
+## 交互式多轮对话（推荐入口）
+
+```bash
+make chat                      # rule-based LLM，免 API Key
+make chat LLM=deepseek         # 使用 DeepSeek API
+```
+
+或直接运行：
+
+```bash
+./.venv/bin/python scripts/run_chat.py
+./.venv/bin/python scripts/run_chat.py --llm deepseek
+```
+
+效果类似 Claude Code：spinner 等待 → 工具调用蓝色面板 → 最终回答绿色面板，持续对话直到输入 `exit` 或按 Ctrl+C。
+
+## CLI（脚本模式）
+
+安装后可直接使用 `harness` 命令（需通过 `uv pip install -e .` 或等效方式安装）：
+
+```bash
+# 单次运行
+harness run "please add numbers"
+harness run "what is the time" --llm rule --max-steps 4
+
+# 多轮交互 TUI
+harness chat
+harness chat --llm deepseek --api-key sk-...
+
+# 从快照恢复
+harness resume logs/snapshot_20260101_120000.json
+
+# 查看帮助
+harness --help
+harness chat --help
+```
+
+## 评估框架
+
+对一批用例做批量回归测试：
+
+```bash
+# 运行内置用例集
+make eval
+
+# 运行自定义用例文件
+make eval CASES=my_cases.json
+
+# 保存报告
+./.venv/bin/python scripts/run_eval.py --output report.json
+```
+
+用例文件格式（JSON 数组）：
+
+```json
+[
+  {
+    "id": "add_numbers",
+    "goal": "please add numbers",
+    "expected_stop_reason": "final_response",
+    "expected_keywords": ["5"]
+  }
+]
+```
+
+也可在 Python 中直接使用：
+
+```python
+from harness import HarnessAgent, RunConfig, RuleBasedLLM
+from harness.eval import EvalCase, EvalRunner
+
+cases = [EvalCase(id="test", goal="hello", expected_stop_reason="final_response")]
+agent = HarnessAgent(llm=RuleBasedLLM(), config=RunConfig())
+report = EvalRunner(agent).run(cases)
+print(f"通过率: {report.pass_rate:.0%}")
+```
+
 ## Common Commands
 
 ```bash
@@ -113,6 +190,7 @@ make lint
 make smoke
 make test
 make check
+make eval
 make run GOAL="please add numbers"
 make run-deepseek GOAL="帮我写一首诗并保存到本地 txt"
 ```
@@ -136,6 +214,8 @@ In practice, a typical run looks like:
 ## Project Structure
 
 - `src/harness/agent.py`: run loop
+- `src/harness/cli.py`: command-line interface (`harness run / resume`)
+- `src/harness/eval.py`: batch evaluation framework
 - `src/harness/schema.py`: strict output schema parser and validator
 - `src/harness/tools.py`: tool dispatcher
 - `src/harness/logger.py`: trajectory logging
@@ -147,6 +227,7 @@ In practice, a typical run looks like:
 - `src/harness/llm.py`: scripted, rule-based, and DeepSeek LLM implementations
 - `scripts/run_mvp.py`: local scripted demo entrypoint
 - `scripts/run_deepseek.py`: DeepSeek API entrypoint
+- `scripts/run_eval.py`: batch evaluation entrypoint
 - `tests/`: unit and smoke tests
 - `docs/`: architecture notes, execution logs, and setup docs
 
@@ -170,12 +251,16 @@ This repository includes a checked-in `.env.example` but ignores local secrets a
 - `docs/deepseek-entrypoint.md`: DeepSeek runtime notes
 - `docs/uv-local-setup.md`: local setup with `uv`
 
+## License
+
+MIT — see [LICENSE](LICENSE).
+
 ## Development Status
 
 Current status:
 
 - Step 1 completed: loop MVP
 - Step 2 completed: reliability layer
-- Step 3 not started as a full implementation
+- Step 3 completed: CLI, eval framework, CI, docstrings
 
 The current direction is to preserve deterministic, strongly constrained, testable evolution before adding more autonomy or complexity.
