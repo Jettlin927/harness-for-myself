@@ -18,6 +18,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
 
+from .definitions import SkillDefinition
 from .session import SessionManager, SessionState
 
 if TYPE_CHECKING:
@@ -204,7 +205,46 @@ class InteractiveSession:
 
             self._project_context = load_project_context(Path(self.agent.config.project_root))
 
+        # Load skill definitions from .hau/skills/
+        self._skills: dict[str, SkillDefinition] = {}
+        if self._project_context:
+            project_root = self._project_context.get("project_root", "")
+            if project_root:
+                from .definitions import load_skill_definitions
+
+                hau_dir = Path(project_root) / ".hau"
+                for skill in load_skill_definitions(hau_dir):
+                    self._skills[skill.name] = skill
+
     # ── public ────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _expand_skill(
+        goal: str, skills: dict[str, SkillDefinition]
+    ) -> tuple[str | None, str | None]:
+        """Expand a /skill command.
+
+        Returns ``(expanded_goal, None)`` on success,
+        ``(None, error_message)`` for unknown skill,
+        or ``(goal, None)`` unchanged when *goal* is not a slash command.
+        """
+        if not goal.startswith("/"):
+            return goal, None
+
+        skill_name = goal.lstrip("/").split()[0]
+        extra_args = goal[len(skill_name) + 2 :].strip()  # +2 for "/" and space
+        skill = skills.get(skill_name)
+        if skill is None:
+            available = ", ".join(f"/{s}" for s in sorted(skills))
+            msg = f"Unknown skill: /{skill_name}"
+            if available:
+                msg += f"\nAvailable: {available}"
+            return None, msg
+
+        expanded = skill.body
+        if extra_args:
+            expanded += f"\n\nAdditional context: {extra_args}"
+        return expanded, None
 
     def start(self) -> None:
         """Start the interactive chat loop. Runs until the user exits."""
@@ -214,8 +254,24 @@ class InteractiveSession:
                 goal = self._prompt_goal()
                 if goal is None:
                     break
-                if goal:
-                    self._run_goal(goal)
+                if not goal:
+                    continue
+
+                # Skill expansion
+                if goal.startswith("/") and self._skills:
+                    expanded, err = self._expand_skill(goal, self._skills)
+                    if err is not None:
+                        self.console.print(f"[red]{err.splitlines()[0]}[/red]")
+                        if "\n" in err:
+                            self.console.print(f"[dim]{err.split(chr(10), 1)[1]}[/dim]")
+                        continue
+                    if expanded is not None:
+                        skill_name = goal.lstrip("/").split()[0]
+                        skill = self._skills[skill_name]
+                        self.console.print(f"[dim]Skill: {skill.name} — {skill.description}[/dim]")
+                        goal = expanded
+
+                self._run_goal(goal)
         except KeyboardInterrupt:
             pass
         finally:
@@ -282,6 +338,9 @@ class InteractiveSession:
             self.console.print(
                 f"  [{_STYLE_DIM}]Project: {langs or 'unknown'}  Branch: {branch}[/{_STYLE_DIM}]"
             )
+        if self._skills:
+            skill_list = ", ".join(f"/{name}" for name in sorted(self._skills))
+            self.console.print(f"  [{_STYLE_DIM}]Skills: {skill_list}[/{_STYLE_DIM}]")
         self.console.print()
 
     def _prompt_goal(self) -> str | None:
