@@ -55,6 +55,31 @@ export {
 } from "./subagent.js";
 export type { SpawnResult, SkillResult } from "./subagent.js";
 
+// Memory & Control
+export { MemoryManager } from "./memory.js";
+export { StopController } from "./stop-controller.js";
+export { ErrorPolicy } from "./error-policy.js";
+export { TrajectoryLogger } from "./logger.js";
+
+// Persistence
+export { SnapshotStore } from "./snapshot.js";
+export { SessionManager } from "./session.js";
+export type { SessionState } from "./session.js";
+export { StrategyConfig } from "./config.js";
+
+// Definitions & Context
+export {
+  parseDefinitionFile,
+  loadAgentDefinitions,
+  loadSkillDefinitions,
+} from "./definitions.js";
+export type { AgentDefinition, SkillDefinition } from "./definitions.js";
+export { ProjectMemory } from "./project-memory.js";
+export { loadProjectContext } from "./context.js";
+
+// Anthropic LLM
+export { AnthropicLLM } from "./anthropic-llm.js";
+
 // Eval
 export { EvalRunner, BUILTIN_CASES } from "./eval.js";
 export type { EvalCase, EvalCaseResult, EvalReport } from "./eval.js";
