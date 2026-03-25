@@ -1,0 +1,59 @@
+{
+  "name": "hau",
+  "version": "0.1.0",
+  "description": "A testable programming agent harness that can autonomously read, search, edit code, and run tests",
+  "type": "module",
+  "bin": {
+    "harness": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/ tests/",
+    "format": "prettier --check 'src/**/*.ts' 'tests/**/*.ts'",
+    "format:fix": "prettier --write 'src/**/*.ts' 'tests/**/*.ts'",
+    "check": "npm run lint && npm run build && npm run test",
+    "prepublishOnly": "npm run check"
+  },
+  "keywords": [
+    "agent",
+    "harness",
+    "llm",
+    "coding-agent",
+    "anthropic",
+    "claude"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "diff": "^7.0.0",
+    "glob": "^11.0.1",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/diff": "^6.0.0",
+    "@types/node": "^22.13.0",
+    "eslint": "^9.20.0",
+    "prettier": "^3.5.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
