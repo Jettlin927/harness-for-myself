@@ -46,3 +46,11 @@ export type { TransportFn } from "./llm.js";
 // Agent
 export { HarnessAgent } from "./agent.js";
 export type { RunConfig } from "./agent.js";
+
+// Subagent
+export {
+  SubAgentSpawner,
+  createUseSkillCallable,
+  resolveTrust,
+} from "./subagent.js";
+export type { SpawnResult, SkillResult } from "./subagent.js";

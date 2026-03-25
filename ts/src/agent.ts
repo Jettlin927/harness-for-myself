@@ -21,6 +21,7 @@ import { SnapshotStore } from "./snapshot.js";
 import { StopController, type StopState } from "./stop-controller.js";
 import { TrajectoryLogger } from "./logger.js";
 import type { BaseLLM } from "./llm.js";
+import { SubAgentSpawner } from "./subagent.js";
 
 /** Cast WorkingMemory to Record<string, unknown> for use with LLM/TurnRecord. */
 function wmToRecord(wm: WorkingMemory): Record<string, unknown> {
@@ -126,8 +127,36 @@ export class HarnessAgent {
       });
     }
 
-    // Sub-agent integration placeholder (agent_depth < 3)
-    // TODO: implement when subagent module is ported
+    // Sub-agent integration: register spawn_agent when depth < 3
+    if (this.config.agent_depth < 3) {
+      const spawner = new SubAgentSpawner(this.config, this.llm, []);
+      this.tools.registerTool(
+        "spawn_agent",
+        (args: Record<string, unknown>) => {
+          // Note: this returns a Promise; async tool execution handled by caller
+          return spawner.call(args);
+        },
+        {
+          type: "object",
+          description: "Spawn a child agent to accomplish a sub-goal",
+          properties: {
+            goal: {
+              type: "string",
+              description: "The goal for the child agent",
+            },
+            agent: {
+              type: "string",
+              description: "Optional agent definition name",
+            },
+            max_steps: {
+              type: "integer",
+              description: "Optional max steps override",
+            },
+          },
+          required: ["goal"],
+        },
+      );
+    }
 
     if (this.llm.setToolSchemas) {
       this.llm.setToolSchemas(this.tools.getToolSchemas());
