@@ -129,10 +129,30 @@ def cmd_resume(args: argparse.Namespace) -> int:
 
 def cmd_chat(args: argparse.Namespace) -> int:
     """Execute the `chat` subcommand (interactive multi-turn TUI)."""
+    from rich.console import Console
+
     from .tui import InteractiveSession
 
-    agent = _build_agent(args)
-    InteractiveSession(agent, new_session=getattr(args, "new_session", False)).start()
+    console = Console()
+
+    # Hint if using default rule-based LLM
+    provider = getattr(args, "provider", None)
+    llm_name = getattr(args, "llm", "rule")
+    if not provider and llm_name == "rule":
+        console.print("[dim]提示：使用 --provider anthropic 连接 Claude API[/dim]")
+
+    try:
+        agent = _build_agent(args)
+    except (ValueError, ImportError) as exc:
+        console.print(f"[red]✗ {exc}[/red]")
+        if "API key" in str(exc) or "api_key" in str(exc).lower():
+            console.print("[dim]  设置方法：export ANTHROPIC_API_KEY=sk-ant-...[/dim]")
+            console.print("[dim]  或创建项目根目录 .env 文件：ANTHROPIC_API_KEY=sk-ant-...[/dim]")
+        raise SystemExit(1) from exc
+
+    InteractiveSession(
+        agent, console=console, new_session=getattr(args, "new_session", False)
+    ).start()
     return 0
 
 
