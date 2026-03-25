@@ -32,3 +32,13 @@ export {
   grepSearch,
   listDirectory,
 } from "./coding-tools.js";
+
+// LLM
+export {
+  BaseLLM,
+  ScriptedLLM,
+  RuleBasedLLM,
+  DeepSeekLLM,
+  buildSystemPrompt,
+} from "./llm.js";
+export type { TransportFn } from "./llm.js";
