@@ -46,3 +46,7 @@ export type { TransportFn } from "./llm.js";
 // Agent
 export { HarnessAgent } from "./agent.js";
 export type { RunConfig } from "./agent.js";
+
+// Eval
+export { EvalRunner, BUILTIN_CASES } from "./eval.js";
+export type { EvalCase, EvalCaseResult, EvalReport } from "./eval.js";
