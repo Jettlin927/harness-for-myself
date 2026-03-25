@@ -42,6 +42,7 @@ export class AnthropicLLM extends BaseLLM {
   constructor(options?: {
     apiKey?: string;
     model?: string;
+    baseUrl?: string;
     toolSchemas?: ToolSchema[];
   }) {
     super();
@@ -54,7 +55,11 @@ export class AnthropicLLM extends BaseLLM {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const Anthropic = require("@anthropic-ai/sdk").default;
-      this._client = new Anthropic({ apiKey: this.apiKey });
+      const clientOpts: Record<string, unknown> = { apiKey: this.apiKey };
+      if (options?.baseUrl) {
+        clientOpts.baseURL = options.baseUrl;
+      }
+      this._client = new Anthropic(clientOpts);
     } catch {
       throw new Error(
         "The '@anthropic-ai/sdk' package is required. Install it with: npm install @anthropic-ai/sdk",

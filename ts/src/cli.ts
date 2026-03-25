@@ -7,6 +7,8 @@
 import { Command } from "commander";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as readline from "node:readline";
+import { pathToFileURL } from "node:url";
 
 import { HarnessAgent, type RunConfig } from "./agent.js";
 import type { BaseLLM } from "./llm.js";
@@ -43,10 +45,12 @@ export function buildLlm(opts: {
   provider?: string;
   apiKey?: string;
   model?: string;
+  baseUrl?: string;
 }): BaseLLM {
   const provider = opts.provider;
   const apiKey = opts.apiKey;
   const model = opts.model;
+  const baseUrl = opts.baseUrl;
 
   if (provider === "anthropic") {
     // Dynamic import to avoid requiring the SDK when not in use
@@ -55,6 +59,7 @@ export function buildLlm(opts: {
     return new AnthropicLLM({
       model: model || "claude-sonnet-4-20250514",
       apiKey,
+      baseUrl,
     });
   }
 
@@ -63,6 +68,7 @@ export function buildLlm(opts: {
     return new DeepSeekLLM({
       apiKey,
       ...(model ? { model } : {}),
+      ...(baseUrl ? { baseUrl } : {}),
     });
   }
   if (llmName === "rule") {
@@ -170,8 +176,24 @@ async function cmdChat(opts: Record<string, unknown>): Promise<number> {
 
   const provider = opts.provider as string | undefined;
   const llmName = (opts.llm as string) ?? "rule";
+
+  // No provider specified and using default rule backend → try saved config or launch wizard
   if (!provider && llmName === "rule") {
-    console.log("\x1b[2m\u63D0\u793A\uFF1A\u4F7F\u7528 --provider anthropic \u8FDE\u63A5 Claude API\x1b[0m");
+    const saved = loadSavedConfig();
+    if (saved) {
+      console.log(`\x1b[2m\u5DF2\u52A0\u8F7D\u914D\u7F6E: ${saved.provider} / ${saved.model ?? "default"}  (harness setup \u53EF\u91CD\u65B0\u914D\u7F6E)\x1b[0m`);
+      opts.provider = saved.provider;
+      opts.apiKey = saved.apiKey;
+      if (saved.model) opts.model = saved.model;
+      if (saved.baseUrl) opts.baseUrl = saved.baseUrl;
+    } else {
+      const setup = await interactiveSetup(null);
+      if (!setup) return 1;
+      opts.provider = setup.provider;
+      opts.apiKey = setup.apiKey;
+      if (setup.model) opts.model = setup.model;
+      if (setup.baseUrl) opts.baseUrl = setup.baseUrl;
+    }
   }
 
   let agent: HarnessAgent;
@@ -198,6 +220,178 @@ async function cmdChat(opts: Record<string, unknown>): Promise<number> {
 }
 
 const ICON_ERR = "\u2717";
+
+// ---------------------------------------------------------------------------
+// Saved config persistence (~/.hau/config.json)
+// ---------------------------------------------------------------------------
+
+interface SavedConfig {
+  provider: string;
+  apiKey: string;
+  model?: string;
+  baseUrl?: string;
+}
+
+const HAU_CONFIG_DIR = path.join(
+  process.env.HOME ?? process.env.USERPROFILE ?? ".",
+  ".hau",
+);
+const HAU_CONFIG_PATH = path.join(HAU_CONFIG_DIR, "config.json");
+
+export function loadSavedConfig(): SavedConfig | null {
+  try {
+    const content = fs.readFileSync(HAU_CONFIG_PATH, "utf-8");
+    const data = JSON.parse(content);
+    if (data.provider && data.apiKey) return data as SavedConfig;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSavedConfig(config: SavedConfig): void {
+  fs.mkdirSync(HAU_CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(HAU_CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8");
+  // Restrict permissions: owner read/write only
+  fs.chmodSync(HAU_CONFIG_PATH, 0o600);
+}
+
+function maskKey(key: string): string {
+  if (key.length <= 12) return key.slice(0, 4) + "...";
+  return key.slice(0, 8) + "..." + key.slice(-4);
+}
+
+// ---------------------------------------------------------------------------
+// Interactive setup wizard
+// ---------------------------------------------------------------------------
+
+interface SetupResult {
+  provider: string;
+  apiKey: string;
+  model?: string;
+  baseUrl?: string;
+}
+
+const PROVIDER_CHOICES = [
+  { key: "1", name: "anthropic", label: "Anthropic (Claude)", defaultBaseUrl: "https://api.anthropic.com", models: ["claude-sonnet-4-20250514", "claude-opus-4-20250514", "claude-haiku-4-20250514"] },
+  { key: "2", name: "deepseek", label: "DeepSeek", defaultBaseUrl: "https://api.deepseek.com", models: ["deepseek-chat", "deepseek-reasoner"] },
+] as const;
+
+function ask(rl: readline.Interface, question: string): Promise<string> {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => resolve(answer.trim()));
+  });
+}
+
+async function interactiveSetup(saved: SavedConfig | null): Promise<SetupResult | null> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+  try {
+    const isReconfigure = saved !== null;
+    const title = isReconfigure ? "HAU \u2014 \u91CD\u65B0\u914D\u7F6E" : "HAU \u2014 \u9996\u6B21\u8FDE\u63A5\u8BBE\u7F6E";
+
+    console.log("\n\x1b[36m" + "\u2500".repeat(60) + "\x1b[0m");
+    console.log(`\x1b[36m\x1b[1m  ${title}\x1b[0m`);
+    console.log("\x1b[36m" + "\u2500".repeat(60) + "\x1b[0m\n");
+
+    // Step 1: Choose provider
+    console.log("  \x1b[1m\u9009\u62E9 LLM \u63D0\u4F9B\u5546\uFF1A\x1b[0m\n");
+    for (const p of PROVIDER_CHOICES) {
+      const current = saved?.provider === p.name ? " \x1b[2m(\u5F53\u524D)\x1b[0m" : "";
+      console.log(`    ${p.key}) ${p.label}${current}`);
+    }
+    console.log();
+
+    let provider: typeof PROVIDER_CHOICES[number] | undefined;
+    const defaultProviderHint = saved ? `, \u56DE\u8F66\u4FDD\u6301 ${saved.provider}` : "";
+    while (!provider) {
+      const choice = await ask(rl, `  \x1b[32m\u25B8\x1b[0m \u8BF7\u9009\u62E9 (1/2${defaultProviderHint}): `);
+      if (!choice && saved) {
+        provider = PROVIDER_CHOICES.find((p) => p.name === saved.provider);
+      } else {
+        provider = PROVIDER_CHOICES.find((p) => p.key === choice || p.name === choice.toLowerCase());
+      }
+      if (!provider) {
+        console.log("  \x1b[31m\u8BF7\u8F93\u5165 1 \u6216 2\x1b[0m");
+      }
+    }
+    console.log(`\n  \x1b[32m\u2713\x1b[0m \u5DF2\u9009\u62E9: ${provider.label}\n`);
+
+    // Step 2: API Key
+    const envKey = provider.name === "anthropic"
+      ? process.env.ANTHROPIC_API_KEY
+      : process.env.DEEPSEEK_API_KEY;
+    const existingKey = envKey ?? (saved?.provider === provider.name ? saved?.apiKey : undefined);
+
+    let apiKey: string;
+    if (existingKey) {
+      const source = envKey ? "\u73AF\u5883\u53D8\u91CF" : "\u5DF2\u4FDD\u5B58\u914D\u7F6E";
+      console.log(`  \x1b[2m\u68C0\u6D4B\u5230${source}\u4E2D\u7684 API Key: ${maskKey(existingKey)}\x1b[0m`);
+      const useExisting = await ask(rl, "  \x1b[32m\u25B8\x1b[0m \u4F7F\u7528\u8BE5 Key\uFF1F(Y/n): ");
+      if (useExisting.toLowerCase() === "n") {
+        apiKey = await ask(rl, "  \x1b[32m\u25B8\x1b[0m \u8BF7\u8F93\u5165\u65B0\u7684 API Key: ");
+      } else {
+        apiKey = existingKey;
+      }
+    } else {
+      apiKey = await ask(rl, "  \x1b[32m\u25B8\x1b[0m \u8BF7\u8F93\u5165 API Key: ");
+    }
+
+    if (!apiKey) {
+      console.log("\n  \x1b[31m\u2717 \u672A\u63D0\u4F9B API Key\uFF0C\u65E0\u6CD5\u7EE7\u7EED\x1b[0m\n");
+      return null;
+    }
+    console.log(`  \x1b[32m\u2713\x1b[0m API Key \u5DF2\u8BBE\u7F6E\n`);
+
+    // Step 3: Base URL
+    const existingBaseUrl = saved?.provider === provider.name ? saved?.baseUrl : undefined;
+    const baseUrlDefault = existingBaseUrl ?? provider.defaultBaseUrl;
+    console.log(`  \x1b[2mAPI Base URL \u9ED8\u8BA4: ${baseUrlDefault}\x1b[0m`);
+    const baseUrlInput = await ask(rl, "  \x1b[32m\u25B8\x1b[0m Base URL (\u56DE\u8F66\u4F7F\u7528\u9ED8\u8BA4): ");
+    const baseUrl = baseUrlInput || (existingBaseUrl ?? undefined);
+    if (baseUrl) {
+      console.log(`  \x1b[32m\u2713\x1b[0m Base URL: ${baseUrl}\n`);
+    } else {
+      console.log(`  \x1b[32m\u2713\x1b[0m Base URL: ${provider.defaultBaseUrl} (\u9ED8\u8BA4)\n`);
+    }
+
+    // Step 4: Choose model
+    const existingModel = saved?.provider === provider.name ? saved?.model : undefined;
+    console.log("  \x1b[1m\u9009\u62E9\u6A21\u578B\uFF1A\x1b[0m\n");
+    for (let i = 0; i < provider.models.length; i++) {
+      const isCurrent = existingModel === provider.models[i];
+      const isDefault = i === 0 && !existingModel;
+      const suffix = isCurrent ? " \x1b[2m(\u5F53\u524D)\x1b[0m" : isDefault ? " \x1b[2m(\u9ED8\u8BA4)\x1b[0m" : "";
+      console.log(`    ${i + 1}) ${provider.models[i]}${suffix}`);
+    }
+    console.log();
+
+    const modelChoice = await ask(rl, `  \x1b[32m\u25B8\x1b[0m \u8BF7\u9009\u62E9 (1-${provider.models.length}\uFF0C\u56DE\u8F66\u9ED8\u8BA4): `);
+    let model: string | undefined;
+    if (modelChoice) {
+      const idx = parseInt(modelChoice, 10) - 1;
+      if (idx >= 0 && idx < provider.models.length) {
+        model = provider.models[idx];
+      }
+    }
+    model = model ?? existingModel ?? provider.models[0];
+    console.log(`\n  \x1b[32m\u2713\x1b[0m \u6A21\u578B: ${model}`);
+
+    // Save config
+    const config: SavedConfig = { provider: provider.name, apiKey, model, baseUrl };
+    saveSavedConfig(config);
+    console.log(`\n  \x1b[32m\u2713\x1b[0m \u914D\u7F6E\u5DF2\u4FDD\u5B58\u5230 ${HAU_CONFIG_PATH}`);
+
+    console.log("\n\x1b[36m" + "\u2500".repeat(60) + "\x1b[0m");
+    console.log(`  \x1b[2m\u63D0\u793A\uFF1A\u8FD0\u884C harness chat \u5C06\u81EA\u52A8\u52A0\u8F7D\u5DF2\u4FDD\u5B58\u7684\u914D\u7F6E\x1b[0m`);
+    console.log(`  \x1b[2m      \u8FD0\u884C harness setup \u53EF\u91CD\u65B0\u914D\u7F6E\x1b[0m`);
+    console.log("\x1b[36m" + "\u2500".repeat(60) + "\x1b[0m");
+
+    return { provider: provider.name, apiKey, model, baseUrl };
+  } finally {
+    rl.close();
+  }
+}
 
 function cmdSession(opts: Record<string, unknown>): number {
   const mgr = new SessionManager();
@@ -318,6 +512,7 @@ export function buildProgram(): Command {
       .option("--api-key <key>", "API key")
       .option("--provider <provider>", "LLM provider (deepseek|anthropic)")
       .option("--model <model>", "Override default model")
+      .option("--base-url <url>", "Custom API base URL")
       .option("--trust <level>", "Trust level (ask|auto-edit|yolo)", "ask")
       .option("--max-steps <n>", "Maximum steps", parseInt, 8)
       .option("--snapshot-dir <dir>", "Snapshot directory")
@@ -374,6 +569,16 @@ export function buildProgram(): Command {
       process.exit(code);
     });
 
+  // --- setup ---
+  program
+    .command("setup")
+    .description("Configure LLM provider, API key, model, and base URL.")
+    .action(async () => {
+      const saved = loadSavedConfig();
+      const setup = await interactiveSetup(saved);
+      process.exit(setup ? 0 : 1);
+    });
+
   // --- session ---
   program
     .command("session")
@@ -411,8 +616,7 @@ const isMainModule =
   typeof import.meta.url !== "undefined" &&
   import.meta.url.startsWith("file:") &&
   process.argv[1] &&
-  (import.meta.url === `file://${process.argv[1]}` ||
-    import.meta.url === `file://${path.resolve(process.argv[1])}`);
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 
 if (isMainModule) {
   main().catch((err) => {
