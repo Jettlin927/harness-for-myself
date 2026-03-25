@@ -42,3 +42,7 @@ export {
   buildSystemPrompt,
 } from "./llm.js";
 export type { TransportFn } from "./llm.js";
+
+// Agent
+export { HarnessAgent } from "./agent.js";
+export type { RunConfig } from "./agent.js";
