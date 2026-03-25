@@ -199,6 +199,7 @@ class InteractiveSession:
         self._streaming: bool = False
         self._session_mgr = SessionManager(session_dir)
         self._session: SessionState = self._init_session(new_session)
+        self._total_tokens: int = 0
         self._project_context: dict[str, Any] = {}
         if self.agent.config.project_root:
             from .context import load_project_context
@@ -455,8 +456,9 @@ class InteractiveSession:
             goals_done = len(self._session.goals_completed)
             sid = self._session.session_id[:8]
             trust = self.agent.config.trust_level
-            token_usage = getattr(self.agent.llm, "total_tokens_used", None)
-            token_line = f"  Token 用量:      {token_usage}" if token_usage is not None else ""
+            token_line = (
+                f"  Token 用量:      ~{self._total_tokens:,}" if self._total_tokens > 0 else ""
+            )
             self.console.print(
                 Panel(
                     f"  Session ID:      {sid}\n"
@@ -511,7 +513,7 @@ class InteractiveSession:
 
         # Start spinner for the first LLM call
         self._streaming = False
-        self._start_status("Thinking...")
+        self._start_status(f"Thinking... (Step 1/{self.agent.config.max_steps})")
 
         def on_turn(record: "TurnRecord") -> None:
             if self._streaming:
@@ -522,7 +524,16 @@ class InteractiveSession:
 
             action_type = record.llm_action.get("action_type") or record.llm_action.get("type", "")
             if action_type == "tool_call":
-                self._start_status("Thinking...")
+                turn_num = record.turn
+                max_steps = self.agent.config.max_steps
+                self._start_status(f"Thinking... (Step {turn_num}/{max_steps})")
+
+        def on_compress() -> None:
+            self._stop_status()
+            self.console.print(
+                f"  [{_STYLE_DIM}]ℹ 早期对话已压缩为摘要以节省上下文空间[/{_STYLE_DIM}]"
+            )
+            self._start_status("Thinking...")
 
         try:
             result = self.agent.run(
@@ -531,6 +542,7 @@ class InteractiveSession:
                 on_turn=on_turn,
                 on_approve=self._approve_tool,
                 on_token=self._on_token,
+                on_compress=on_compress,
             )
         except KeyboardInterrupt:
             self._stop_status()
@@ -538,6 +550,8 @@ class InteractiveSession:
             return
         finally:
             self._stop_status()
+
+        self._total_tokens += result.total_tokens
 
         # Persist session state after each completed run
         self._session_mgr.update(
@@ -559,10 +573,34 @@ class InteractiveSession:
         arguments: Dict[str, Any],
     ) -> bool:
         """Prompt the user for approval before running a sensitive tool."""
-        _ = arguments
         if self._auto_approve_this_goal:
             return True
         self._stop_status()
+
+        # Show diff preview for edit_file
+        if tool_name == "edit_file":
+            import difflib
+
+            path = arguments.get("path", "")
+            old_text = arguments.get("old_text", "")
+            new_text = arguments.get("new_text", "")
+            if old_text and new_text:
+                diff = difflib.unified_diff(
+                    old_text.splitlines(keepends=True),
+                    new_text.splitlines(keepends=True),
+                    fromfile=f"a/{Path(path).name}",
+                    tofile=f"b/{Path(path).name}",
+                )
+                diff_str = "".join(diff)
+                if diff_str:
+                    self.console.print(
+                        Panel(
+                            escape(diff_str),
+                            title=f"edit_file: {path}",
+                            border_style="yellow",
+                        )
+                    )
+
         short = description[:80] + "..." if len(description) > 80 else description
         try:
             answer = Prompt.ask(
@@ -586,14 +624,14 @@ class InteractiveSession:
         stop = result.stop_reason
         turns = len(result.turns)
         log = result.log_path
+        tokens = getattr(result, "total_tokens", 0)
 
+        tokens_info = f"  ~{tokens:,} tokens" if tokens > 0 else ""
         stop_style = _STYLE_OK if stop in ("final_response", "goal_reached") else _STYLE_ERR
+        icon = _ICON_OK if stop in ("final_response", "goal_reached") else _ICON_ERR
         self.console.print(
-            f"  [{_STYLE_DIM}]"
-            f"[/{_STYLE_DIM}][{stop_style}]{_ICON_OK}[/{stop_style}]"
-            f"  stop=[bold]{stop}[/bold]"
-            f"  {turns} turns"
-            f"  [{_STYLE_DIM}]{duration:.2f}s[/{_STYLE_DIM}]"
+            f"  [{stop_style}]{icon}[/{stop_style}] {stop}  "
+            f"{turns} turns  {duration:.1f}s{tokens_info}"
             f"  [{_STYLE_DIM}]{escape(log)}[/{_STYLE_DIM}]"
         )
         self.console.print()

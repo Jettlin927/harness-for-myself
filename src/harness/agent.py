@@ -176,6 +176,7 @@ class HarnessAgent:
         on_turn: Callable[["TurnRecord"], None] | None = None,
         on_approve: Callable[[str, str, Dict[str, Any]], bool] | None = None,
         on_token: Callable[[str], None] | None = None,
+        on_compress: Callable[[], None] | None = None,
     ) -> RunResult:
         """Run the agent loop until a stop condition is met.
 
@@ -300,6 +301,7 @@ class HarnessAgent:
                     stop_reason=stop_reason,
                     log_path=str(logger.path),
                     snapshot_path=snapshot_path,
+                    total_tokens=total_tokens,
                 )
 
             tool_result = self._execute_tool_call(
@@ -329,7 +331,8 @@ class HarnessAgent:
             logger.append(record)
             if on_turn:
                 on_turn(record)
-            self.memory.maybe_compress(turns)
+            if self.memory.maybe_compress(turns) and on_compress:
+                on_compress()
             snapshot_path = self._save_snapshot(
                 goal=goal,
                 context=context,
@@ -348,6 +351,7 @@ class HarnessAgent:
             stop_reason=stop_reason,
             log_path=str(logger.path),
             snapshot_path=snapshot_path,
+            total_tokens=total_tokens,
         )
 
     def resume(self, snapshot_path: str) -> RunResult:

@@ -44,3 +44,4 @@ class RunResult:
     stop_reason: str
     log_path: str
     snapshot_path: str | None = None
+    total_tokens: int = 0
