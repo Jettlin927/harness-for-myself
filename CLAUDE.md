@@ -5,46 +5,50 @@
 **HAU（Harness for Yourself）** — 可测试的编程 agent harness，具备严格 schema 校验和可靠性护栏。
 能在真实项目中读代码、改代码、跑测试。
 
-- 入口：`harness` CLI（`src/harness/cli.py`）
-- Python >= 3.12，唯一运行时依赖：`rich`
-- 包管理和运行一律用 `uv`
+- 入口：`harness` CLI（`ts/src/cli.ts` → `ts/dist/cli.js`）
+- Node.js >= 18，TypeScript 5.7+
+- 包管理用 `npm`，代码在 `ts/` 目录下
 
 ## 当前状态
 
-**Python 版本功能完成（Phase 1-9b-3），正在规划 TypeScript 重写。**
+**TypeScript 重写进行中。** Python 版本功能已冻结，新开发在 `ts/` 目录进行。
 
-已实现：编程工具（7 个）、Anthropic 原生 tool_use、流式输出、三级权限、项目上下文注入、子 Agent 生成、Skill 系统、跨会话记忆、网络重试、原子快照。221+ 测试用例全部通过。
+功能清单：编程工具（7 个）、Anthropic 原生 tool_use、流式输出、三级权限、项目上下文注入、子 Agent 生成、Skill 系统、跨会话记忆、网络重试、原子快照。
 
 ## 项目结构
 
 ```
-src/harness/          # Python 核心代码（现有实现）
-  agent.py            # 主循环 HarnessAgent + RunConfig
-  schema.py           # LLM 输出解析与校验
-  tools.py            # 工具路由 ToolDispatcher
-  llm.py              # BaseLLM + RuleBasedLLM / ScriptedLLM / DeepSeekLLM
-  anthropic_llm.py    # AnthropicLLM 适配器（原生 tool_use）
-  types.py            # 共享类型定义
-  coding_tools.py     # 7 个编程工具
-  memory.py           # 工作记忆与压缩
-  context.py          # 项目上下文加载器
-  session.py          # 会话管理
-  config.py           # StrategyConfig 版本化配置
-  eval.py             # EvalRunner 离线回归
-  tui.py              # Rich TUI 交互
-  cli.py              # CLI 入口
-  logger.py           # JSONL 轨迹日志
-  stop_controller.py  # 停止条件控制
-  error_policy.py     # 错误分流与重试
-  snapshot.py         # 状态快照与恢复
-  definitions.py      # Agent/Skill 定义文件解析
-  subagent.py         # 子 Agent 生成
-  project_memory.py   # 跨会话记忆
-tests/                # 测试（unittest，221+ 用例）
-configs/              # 策略配置文件
+ts/                   # ★ TypeScript 重写（活跃开发）
+  src/                # 源码
+    types.ts          # 共享类型定义
+    schema.ts         # LLM 输出解析与校验
+    tools.ts          # 工具路由 ToolDispatcher
+    coding-tools.ts   # 7 个编程工具
+    llm.ts            # BaseLLM + ScriptedLLM
+    anthropic-llm.ts  # AnthropicLLM 适配器
+    memory.ts         # 工作记忆与压缩
+    context.ts        # 项目上下文加载器
+    session.ts        # 会话管理
+    snapshot.ts       # 状态快照与恢复
+    config.ts         # 版本化配置
+    agent.ts          # 主循环 HarnessAgent
+    stop-controller.ts # 停止条件控制
+    error-policy.ts   # 错误分流与重试
+    definitions.ts    # Agent/Skill 定义文件解析
+    subagent.ts       # 子 Agent 生成
+    project-memory.ts # 跨会话记忆
+    logger.ts         # JSONL 轨迹日志
+    tui.ts            # Ink TUI 交互
+    cli.ts            # CLI 入口
+    eval.ts           # EvalRunner 离线回归
+  tests/              # 测试（vitest）
+  package.json        # 依赖与脚本
+  tsconfig.json       # TypeScript 配置
+  eslint.config.js    # ESLint 配置
+src/harness/          # Python 原版（已冻结，仅供参考）
 docs/                 # 文档
-  ts-rewrite/         # ★ TypeScript 重写规格与计划
-scripts/              # 运行脚本
+  ts-rewrite/         # TypeScript 重写规格与计划
+configs/              # 策略配置文件
 ```
 
 ## 关键文档索引
@@ -70,24 +74,23 @@ scripts/              # 运行脚本
 
 ## 开发规范
 
-### 常用命令（Python 版本）
+### 常用命令
 
 ```bash
-uv run python -m pytest          # 跑测试
-make check                       # lint + smoke + test
-make fullcheck                   # lint + typecheck + smoke + test
-make fmt                         # Ruff 格式化
-make lint                        # Ruff lint
-make typecheck                   # Pyright 类型检查
-harness chat                     # 交互式 TUI
-harness eval                     # 回归评估
+# 在 ts/ 目录下执行
+npm run lint                     # ESLint 检查
+npm run format                   # Prettier 格式检查
+npm run format:fix               # Prettier 自动格式化
+npm run build                    # tsc 编译
+npm run test                     # vitest 跑测试
+npm run check                    # lint + build + test 全套
 ```
 
 ### 代码约定
 
 - commit 消息用中文
-- LLM 输出必须经过 `schema.py` 严格校验，不信任原始输出
-- 工具通过 `ToolDispatcher.register_tool()` 注册，保持统一路由
+- LLM 输出必须经过 `schema.ts` 严格校验，不信任原始输出
+- 工具通过 `ToolDispatcher.registerTool()` 注册，保持统一路由
 - 可重试错误用 `RetryableToolError` 显式声明
 - 新模块必须有对应测试文件
 - agent 级测试用 `ScriptedLLM` 驱动，避免依赖真实 API
@@ -96,5 +99,5 @@ harness eval                     # 回归评估
 ### Claude Code Hooks
 
 配置在 `.claude/settings.json`，自动触发质量检查：
-- **PostToolUse（Edit/Write）** → `make lint`（即时 lint 反馈）
-- **SubagentStop** → `make check`（subagent 结束后全套 lint + test）
+- **PostToolUse（Edit/Write）** → `npx eslint`（即时 lint 反馈）
+- **SubagentStop** → `npm run check`（subagent 结束后全套 lint + build + test）

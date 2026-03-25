@@ -18,3 +18,17 @@ export { SchemaError, RetryableToolError, toolSuccess, toolError } from "./types
 
 // Schema
 export { ensureDict, parseLLMAction } from "./schema.js";
+
+// Tools
+export { ToolDispatcher, registerCodingTools } from "./tools.js";
+
+// Coding Tools
+export {
+  readFile,
+  editFile,
+  writeFile,
+  runBash,
+  globFiles,
+  grepSearch,
+  listDirectory,
+} from "./coding-tools.js";
