@@ -54,3 +54,7 @@ export {
   resolveTrust,
 } from "./subagent.js";
 export type { SpawnResult, SkillResult } from "./subagent.js";
+
+// Eval
+export { EvalRunner, BUILTIN_CASES } from "./eval.js";
+export type { EvalCase, EvalCaseResult, EvalReport } from "./eval.js";
