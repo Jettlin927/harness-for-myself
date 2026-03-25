@@ -123,7 +123,7 @@ def run_bash(arguments: dict[str, Any]) -> Any:
     except subprocess.TimeoutExpired:
         return {
             "stdout": "",
-            "stderr": f"Command timed out after {timeout}s",
+            "stderr": f"Command timed out after {timeout}s: {command}",
             "returncode": -1,
         }
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 from getpass import getpass
 from pathlib import Path
@@ -257,7 +258,12 @@ class DeepSeekLLM(BaseLLM):
             except RuntimeError as exc:
                 msg = str(exc)
                 if self._is_retryable_error(msg) and attempt < max_retries:
-                    time.sleep(2**attempt)  # 1s, 2s
+                    wait = 2**attempt
+                    print(
+                        f"\033[2m⟳ DeepSeek API 请求失败，{wait}s 后重试... ({exc})\033[0m",
+                        file=sys.stderr,
+                    )
+                    time.sleep(wait)
                     continue
                 raise
 

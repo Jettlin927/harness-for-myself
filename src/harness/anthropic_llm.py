@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List
@@ -89,7 +90,12 @@ class AnthropicLLM(BaseLLM):
                 return fn(*args, **kwargs)
             except Exception as exc:
                 if _is_retryable(exc) and attempt < max_retries:
-                    time.sleep(2**attempt)  # 1s, 2s
+                    wait = 2**attempt
+                    print(
+                        f"\033[2m⟳ API 请求失败，{wait}s 后重试... ({exc})\033[0m",
+                        file=sys.stderr,
+                    )
+                    time.sleep(wait)
                     continue
                 raise RuntimeError(f"LLM API call failed: {exc}") from exc
 
