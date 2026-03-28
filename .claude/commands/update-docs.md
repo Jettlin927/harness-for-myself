@@ -40,12 +40,12 @@ git log --oneline --after="<doc_last_updated>" -- . ':(exclude)docs/'
 
 **不只看 diff**——文档里可能有与近期 diff 无关但已经过时的内容。对照实际代码主动核查：
 
-- **脚本/入口**：`ls scripts/`，对比文档里列出的入口脚本是否还存在、是否有新增
-- **模块列表**：`ls src/<package>/`，对比文档里的模块/文件名是否准确
-- **CLI 命令**：查看 `pyproject.toml` 的 `[project.scripts]`，文档里的命令列表是否完整
-- **Makefile 命令**：`cat Makefile` 看有哪些 target，对比文档里列出的是否有遗漏
-- **依赖描述**：查看 `pyproject.toml` 的依赖声明，文档里关于"无依赖"或依赖范围的描述是否还准确
-- **测试数量**：如果文档里写了具体数字（如"Ran 33 tests"），核查当前实际数量并更新
+- **脚本/入口**：查看 `ts/package.json` 的 `bin` 字段和 `ts/src/cli.ts`，对比文档里列出的入口是否准确
+- **模块列表**：`ls ts/src/`，对比文档里的模块/文件名是否准确
+- **CLI 命令**：查看 `ts/package.json` 的 `bin` 和 `scripts` 字段，文档里的命令列表是否完整
+- **npm scripts**：查看 `ts/package.json` 的 `scripts`，对比文档里列出的开发命令是否有遗漏
+- **依赖描述**：查看 `ts/package.json` 的 `dependencies` / `devDependencies`，文档里关于依赖范围的描述是否还准确
+- **测试数量**：如果文档里写了具体数字，运行 `cd ts && npx vitest run --reporter=verbose 2>&1 | tail -5` 核查当前实际数量并更新
 
 重点关注这类容易被忽视的过时内容：
 - 文档里的命令示例用了已不再推荐的旧入口

@@ -10,9 +10,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && make lint 2>&1 | tail -20",
+            "command": "cd \"$CLAUDE_PROJECT_DIR/ts\" && npx eslint src/ tests/ 2>&1 | tail -20",
             "timeout": 30,
-            "statusMessage": "Running lint..."
+            "statusMessage": "Running ESLint..."
           }
         ]
       }
@@ -22,9 +22,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && make check 2>&1 | tail -40",
+            "command": "cd \"$CLAUDE_PROJECT_DIR/ts\" && npm run check 2>&1 | tail -40",
             "timeout": 120,
-            "statusMessage": "Running lint + test..."
+            "statusMessage": "Running lint + build + test..."
           }
         ]
       }

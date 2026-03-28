@@ -1,83 +1,58 @@
-UV := ~/.local/bin/uv
-UV_CACHE_DIR := $(CURDIR)/.uv-cache
-UV_PYTHON_INSTALL_DIR := $(CURDIR)/.uv-python
-XDG_DATA_HOME := $(CURDIR)/.local-share
-PYTHON312 := $(CURDIR)/.uv-python/cpython-3.12.13-macos-aarch64-none/bin/python3.12
-VENV_PYTHON := $(CURDIR)/.venv/bin/python
-RUFF := UV_CACHE_DIR="$(UV_CACHE_DIR)" XDG_DATA_HOME="$(XDG_DATA_HOME)" ~/.local/bin/uvx ruff
+TS_DIR := $(CURDIR)/ts
 
-.PHONY: help setup install-python venv install fmt lint typecheck smoke test check run run-deepseek eval chat clean
+.PHONY: help setup install fmt lint typecheck build test check fullcheck chat eval clean
 
 help:
 	@echo "Available targets:"
-	@echo "  make setup              Install Python 3.12, create .venv, install deps"
-	@echo "  make install-python     Download Python 3.12 into .uv-python"
-	@echo "  make venv               Create .venv with the project-local Python"
-	@echo "  make install            Install project dependencies (rich, etc.)"
-	@echo "  make fmt                Format Python files with Ruff"
-	@echo "  make lint               Lint Python files with Ruff"
-	@echo "  make typecheck          Type check with Pyright"
-	@echo "  make smoke              Run smoke tests only"
-	@echo "  make test               Run the unittest suite"
-	@echo "  make check              Run lint + smoke + full test suite"
-	@echo "  make run GOAL='...'     Run the demo harness"
-	@echo "  make run-deepseek GOAL='...'  Run the harness with DeepSeek API"
-	@echo "  make chat               Start interactive multi-turn chat (visual TUI)"
-	@echo "  make chat LLM=deepseek  Chat using DeepSeek API"
-	@echo "  make eval               Run built-in eval suite"
-	@echo "  make eval CASES=path/to/cases.json  Run custom eval cases"
-	@echo "  make clean              Remove local uv cache, python, and .venv"
+	@echo "  make setup              Install npm dependencies"
+	@echo "  make install            Same as setup"
+	@echo "  make fmt                Format with Prettier (auto-fix)"
+	@echo "  make lint               Lint with ESLint"
+	@echo "  make typecheck          Type check with tsc --noEmit"
+	@echo "  make build              Compile TypeScript to dist/"
+	@echo "  make test               Run vitest test suite"
+	@echo "  make check              lint + build + test"
+	@echo "  make fullcheck          lint + format check + typecheck + build + test"
+	@echo "  make chat               Start interactive TUI"
+	@echo "  make eval               Run eval suite"
+	@echo "  make clean              Remove node_modules and dist"
 
-setup: install-python venv install
+setup:
+	cd "$(TS_DIR)" && npm install
 
-install-python:
-	UV_CACHE_DIR="$(UV_CACHE_DIR)" UV_PYTHON_INSTALL_DIR="$(UV_PYTHON_INSTALL_DIR)" XDG_DATA_HOME="$(XDG_DATA_HOME)" $(UV) python install 3.12
-
-venv:
-	UV_CACHE_DIR="$(UV_CACHE_DIR)" XDG_DATA_HOME="$(XDG_DATA_HOME)" $(UV) venv .venv --python "$(PYTHON312)"
-
-install:
-	UV_CACHE_DIR="$(UV_CACHE_DIR)" $(UV) pip install -e ".[dev]" --python "$(VENV_PYTHON)"
+install: setup
 
 fmt:
-	$(RUFF) format .
-
-lint:
-	$(RUFF) check .
-
-typecheck:
-	UV_CACHE_DIR="$(UV_CACHE_DIR)" $(UV) run pyright src/
-
-smoke:
-	"$(VENV_PYTHON)" -m unittest tests.test_smoke
-
-test:
-	"$(VENV_PYTHON)" -m unittest discover -s tests -p "test_*.py"
+	cd "$(TS_DIR)" && npx prettier --write 'src/**/*.ts' 'tests/**/*.ts'
 
 fmtcheck:
-	$(RUFF) format --check .
+	cd "$(TS_DIR)" && npx prettier --check 'src/**/*.ts' 'tests/**/*.ts'
 
-check: lint fmtcheck smoke test
+lint:
+	cd "$(TS_DIR)" && npx eslint src/ tests/
 
-fullcheck: lint fmtcheck typecheck smoke test
+typecheck:
+	cd "$(TS_DIR)" && npx tsc --noEmit
 
-run:
-	@if [ -z "$(GOAL)" ]; then echo "Usage: make run GOAL='please add numbers'"; exit 1; fi
-	"$(VENV_PYTHON)" scripts/run_mvp.py "$(GOAL)"
+build:
+	cd "$(TS_DIR)" && npx tsc
 
-run-deepseek:
-	@if [ -z "$(GOAL)" ]; then echo "Usage: make run-deepseek GOAL='please add numbers'"; exit 1; fi
-	"$(VENV_PYTHON)" scripts/run_deepseek.py "$(GOAL)"
+test:
+	cd "$(TS_DIR)" && npx vitest run
+
+check: lint build test
+
+fullcheck: lint fmtcheck typecheck build test
 
 chat:
-	"$(VENV_PYTHON)" scripts/run_chat.py --llm "$(or $(LLM),rule)"
+	cd "$(TS_DIR)" && node dist/cli.js chat
 
 eval:
 	@if [ -n "$(CASES)" ]; then \
-		"$(VENV_PYTHON)" scripts/run_eval.py --cases "$(CASES)"; \
+		cd "$(TS_DIR)" && node dist/cli.js eval --cases "$(CASES)"; \
 	else \
-		"$(VENV_PYTHON)" scripts/run_eval.py; \
+		cd "$(TS_DIR)" && node dist/cli.js eval; \
 	fi
 
 clean:
-	rm -rf .venv .uv-cache .uv-python
+	rm -rf "$(TS_DIR)/node_modules" "$(TS_DIR)/dist"

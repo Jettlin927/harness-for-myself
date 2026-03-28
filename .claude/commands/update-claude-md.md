@@ -62,10 +62,10 @@ CLAUDE.md 是**索引层**，不是**内容层**。遵循以下原则：
 
 1. 读取当前 `CLAUDE.md`（如果存在）
 2. 读取 `docs/` 下所有 `.md` 文件，提取各阶段状态
-3. `ls src/harness/` 获取最新模块列表
-4. `ls tests/` 获取最新测试文件列表
-5. 读取 `pyproject.toml` 获取依赖和工具配置
-6. 读取 `Makefile` 获取开发命令
+3. `ls ts/src/` 获取最新 TS 模块列表
+4. `ls ts/tests/` 获取最新测试文件列表
+5. 读取 `ts/package.json` 获取依赖和脚本配置
+6. 读取 `ts/tsconfig.json` 获取 TypeScript 编译配置
 7. `git log --oneline -10` 了解最近动态
 8. `git status --short` 了解未提交的工作
 
@@ -85,9 +85,9 @@ CLAUDE.md 是**索引层**，不是**内容层**。遵循以下原则：
 
 1. **进展状态表** — 根据 docs 和代码刷新 ✅/🚧 标记
 2. **进行中工作** — 根据 git status 和最近 commits 更新细节
-3. **模块结构** — 如有新增/删除模块则同步
-4. **测试文件列表** — 如有新增测试则同步
-5. **开发命令** — 如 Makefile 有变化则同步
+3. **模块结构** — 如有新增/删除 TS 模块则同步
+4. **测试文件列表** — 如有新增 vitest 测试则同步
+5. **开发命令** — 如 package.json scripts 有变化则同步
 
 ### 第四步：汇报
 
