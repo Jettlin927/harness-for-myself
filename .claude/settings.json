@@ -13,6 +13,12 @@
             "command": "cd \"$CLAUDE_PROJECT_DIR/ts\" && npx eslint src/ tests/ 2>&1 | tail -20",
             "timeout": 30,
             "statusMessage": "Running ESLint..."
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | grep -q '.ts$' && cd \"$CLAUDE_PROJECT_DIR/ts\" && npx tsc --noEmit 2>&1 | tail -20 || true",
+            "timeout": 30,
+            "statusMessage": "TypeScript type check..."
           }
         ]
       }
