@@ -1,0 +1,250 @@
+# HAU Roadmap — 从 Agent Harness 到实用编程助手
+
+> Phase 0-12（TypeScript 重写）已完成。本 Roadmap 聚焦下一阶段：缩小与 Claude Code 的体验差距。
+
+## 当前位置
+
+**已有**：22 模块 · 386 测试 · 7 编程工具 · Anthropic 原生 tool_use · **Prompt Caching** · 流式输出 · 三级权限 · 子 Agent · Eval 框架
+
+**核心差距**（按影响排序）：
+1. ~~上下文管理粗糙~~ → Phase 13 已完成 prompt caching + summary 上限
+2. 工具性能弱 → 大项目不可用（grep 自己遍历、无沙箱）
+3. 权限模型粗 → 不敢放 auto，只能 ask/yolo 二选一
+4. 交互体验缺失 → 无 Plan 模式、无 Task 跟踪、无中断恢复
+5. 多 Agent 能力弱 → 无并行、无隔离、无专用 agent 类型
+6. 生态集成空白 → 无 MCP、无 Git/GitHub 深度集成
+
+---
+
+## Phase 13: Prompt Caching + 智能上下文压缩 ✅ 已完成
+
+**目标：** 大幅降低 token 成本，支撑长对话。
+
+**实际交付：**
+- `anthropic-llm.ts` — 三处 `cache_control: { type: "ephemeral" }` 标记：
+  - system prompt（content block 数组格式）
+  - tool definitions（最后一个 tool 上标记）
+  - 首条 user message（goal + context + summary）
+- `anthropic-llm.ts` — `_parseResponse()` 解析 `cache_creation_input_tokens` / `cache_read_input_tokens`
+- `memory.ts` — 新增 `MAX_SUMMARY_CHARS = 4000`，summary 超限自动截断
+- `types.ts` — 新增 `TokenUsage` 接口（含缓存字段），`RunResult` 增加 `cache_read_tokens` / `cache_create_tokens`
+- `agent.ts` — 主循环累计缓存 token 统计
+- 386 测试全部通过，含适配后的缓存相关断言
+
+---
+
+## Phase 14: 工具层升级
+
+**目标：** 大项目可用，工具性能对齐主流水平。
+
+**产出：**
+
+### 14a: Bash 沙箱
+- `coding-tools.ts` 的 `run_bash` 改为 `child_process.spawn`（异步），支持：
+  - 可配置超时（默认 120s，上限 600s）
+  - 后台执行模式（`run_in_background`）
+  - stdout/stderr 分离 + 输出截断
+  - 工作目录持久化（跨调用保持 cwd）
+
+### 14b: Grep 换 ripgrep
+- `grep_search` 改为调用 `rg` 子进程（fallback 到当前实现）
+- 支持 `output_mode`（content / files_with_matches / count）
+- 支持 `-A/-B/-C` 上下文行
+- 支持 `glob` 过滤 + `type` 过滤
+
+### 14c: 文件工具增强
+- `edit_file` 支持 `replace_all` 参数
+- `read_file` 支持 PDF（通过外部工具）、图片（base64 → multimodal）
+- `write_file` 允许覆盖（当前拒绝覆盖，需调整语义）
+
+**验收：**
+- 在 10 万行级项目上 grep 响应 < 2s
+- bash 后台执行 + 超时中断正常工作
+- 新增测试覆盖所有增强功能
+
+**预估工作量：** 大
+
+---
+
+## Phase 15: 细粒度权限模型
+
+**目标：** 在 ask 和 yolo 之间找到实用的中间地带。
+
+**产出：**
+- `types.ts` — 新增 `PermissionRule` 类型：
+  ```ts
+  interface PermissionRule {
+    tool: string;           // "run_bash" | "edit_file" | "*"
+    pattern?: string;       // glob 匹配，如 "npm test" / "src/**"
+    decision: "allow" | "deny" | "ask";
+  }
+  ```
+- `agent.ts` — `_needsApproval()` 重写：按规则链匹配，支持命令白名单
+- `config.ts` — 权限规则从配置文件加载（`.hau/permissions.json`）
+- TUI — 审批时支持 "Always allow this"（动态添加规则）
+
+**验收：**
+- 可配置 `npm test` 自动放行、`rm` 必须确认
+- "Always allow" 持久化到配置文件
+- 权限测试用例 20+
+
+**预估工作量：** 中等
+
+---
+
+## Phase 16: Plan 模式 + Task 系统
+
+**目标：** 复杂任务先对齐再执行，过程可追踪。
+
+**产出：**
+
+### 16a: Plan 模式
+- `types.ts` — 新增 `AgentMode`（`execute` | `plan`）
+- `agent.ts` — Plan 模式下 agent 只能读/搜索，不能写/执行
+- TUI — Plan 展示 + 用户确认 → 切换到 execute 模式
+- Plan 结果存入 working memory，指导后续执行
+
+### 16b: Task 系统
+- `src/tasks.ts`（新模块）— TaskManager：create / update / list / get
+- Task 状态：`pending` → `in_progress` → `completed` / `failed`
+- Agent 主循环中自动更新 task 进度
+- TUI — task 列表渲染
+
+**验收：**
+- Plan → 确认 → Execute 流程端到端通过
+- 复杂任务自动拆分为 3+ subtasks
+- Task 状态更新反映在 TUI
+
+**预估工作量：** 大
+
+---
+
+## Phase 17: Hook 系统
+
+**目标：** 用户可在工具执行前后注入自定义逻辑。
+
+**产出：**
+- `src/hooks.ts`（新模块）— HookManager
+- 支持的 hook 点：
+  - `PreToolUse` — 工具执行前（可拦截）
+  - `PostToolUse` — 工具执行后（可触发副作用）
+  - `SessionStart` / `SessionEnd`
+  - `SubagentStop`
+- Hook 定义在 `.hau/settings.json`，格式：
+  ```json
+  { "hooks": [
+    { "event": "PostToolUse", "tools": ["edit_file", "write_file"], "command": "npx eslint ${file}" }
+  ]}
+  ```
+- Hook 执行结果注入到 agent 上下文
+
+**验收：**
+- PostToolUse hook 自动 lint 工作正常
+- Hook 失败不阻塞 agent 主循环（可配置）
+- Hook 测试用例 15+
+
+**预估工作量：** 中等
+
+---
+
+## Phase 18: 多 Agent 增强
+
+**目标：** 支持并行 agent、隔离执行、专用 agent 类型。
+
+**产出：**
+
+### 18a: Agent 类型系统
+- `definitions.ts` — agent 定义支持 `type` 字段：
+  - `general-purpose` — 完整工具集
+  - `explore` — 只读工具（Glob/Grep/Read），用于代码探索
+  - `plan` — 只读 + 规划输出，不执行
+- `subagent.ts` — 根据 type 自动限制可用工具集
+
+### 18b: 后台执行 + Git Worktree 隔离
+- `subagent.ts` — 支持 `run_in_background`（fire-and-forget，完成后通知）
+- `src/worktree.ts`（新模块）— Git worktree 管理：
+  - 为子 agent 创建临时 worktree
+  - Agent 完成后：有改动则保留分支，无改动则清理
+- 并行 agent 各自在独立 worktree 中执行
+
+**验收：**
+- Explore agent 无法调用 write/bash 工具
+- 后台 agent 正常执行并回调通知
+- Worktree 创建/清理正常
+
+**预估工作量：** 大
+
+---
+
+## Phase 19: 网络能力 + MCP
+
+**目标：** Agent 能访问网络资源，支持外部工具扩展。
+
+**产出：**
+
+### 19a: 内置网络工具
+- `coding-tools.ts` — 新增：
+  - `web_fetch` — HTTP GET，返回文本/HTML（带大小限制）
+  - `web_search` — 搜索引擎查询（通过 API）
+
+### 19b: MCP 客户端
+- `src/mcp.ts`（新模块）— Model Context Protocol 客户端：
+  - 连接 MCP server（stdio / HTTP）
+  - 将 MCP tool 注册到 ToolDispatcher
+  - 支持 MCP resource 作为上下文注入
+- 配置在 `.hau/settings.json` 的 `mcpServers` 字段
+
+**验收：**
+- web_fetch 能抓取网页并返回内容
+- 至少一个 MCP server（如 filesystem）正常连接并可调用
+- MCP 工具在 TUI 中正常显示
+
+**预估工作量：** 大
+
+---
+
+## Phase 20: Git/GitHub 深度集成
+
+**目标：** Agent 理解 Git 上下文，能操作 PR/Issue。
+
+**产出：**
+- `context.ts` — 增强 git 上下文：
+  - 当前 branch、diff stat、recent commits 自动注入
+  - 检测 merge conflict 状态
+- `coding-tools.ts` — git 相关工具增强：
+  - `run_bash` 对 git 命令的安全护栏（拦截 force push、reset --hard 等）
+- Agent 系统提示中注入 git 最佳实践（commit 规范、PR 创建流程）
+
+**验收：**
+- Agent 能自动感知当前 git 状态
+- 危险 git 操作被拦截并提示用户确认
+- 通过 `gh` CLI 创建 PR 的端到端流程
+
+**预估工作量：** 中等
+
+---
+
+## 优先级与里程碑
+
+```
+Q2 2026 (4-6月)
+├── Phase 13: Prompt Caching + 上下文压缩  ✅ 已完成 (2026-03-31)
+├── Phase 14: 工具层升级                    ← 下一步
+└── Phase 15: 细粒度权限                    ← 让 auto 模式实用
+
+Q3 2026 (7-9月)
+├── Phase 16: Plan + Task                   ← 复杂任务体验
+├── Phase 17: Hook 系统                     ← 可扩展性
+└── Phase 18: 多 Agent 增强                 ← 并行能力
+
+Q4 2026 (10-12月)
+├── Phase 19: 网络 + MCP                    ← 生态集成
+└── Phase 20: Git/GitHub 深度集成           ← 开发者工作流
+```
+
+## 设计原则
+
+1. **每个 Phase 独立可交付** — 完成一个就能用一个，不搞大爆炸
+2. **测试先行延续** — 每个新模块/功能先写测试
+3. **向后兼容** — 已有的 386 测试不能 break
+4. **实用主义** — 不追求 100% 复刻 Claude Code，优先解决真实痛点

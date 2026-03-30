@@ -11,9 +11,9 @@
 
 ## 当前状态
 
-**TypeScript 重写已完成。** 22 个模块、386 个测试全部通过。
+**TypeScript 重写已完成，Phase 13（Prompt Caching）已完成。** 22 个模块、386 个测试全部通过。
 
-功能清单：编程工具（7 个）、Anthropic 原生 tool_use、流式输出、三级权限、项目上下文注入、子 Agent 生成、Skill 系统、跨会话记忆、网络重试、原子快照、评估框架。
+功能清单：编程工具（7 个）、Anthropic 原生 tool_use、**Prompt Caching（三段缓存）**、流式输出、三级权限、项目上下文注入、子 Agent 生成、Skill 系统、跨会话记忆、网络重试、原子快照、评估框架。
 
 ## 项目结构
 
@@ -90,4 +90,5 @@ npm run check                    # lint + build + test 全套
 
 配置在 `.claude/settings.json`，自动触发质量检查：
 - **PostToolUse（Edit/Write）** → `npx eslint`（即时 lint 反馈）
+- **PostToolUse（Edit/Write .ts）** → `tsc --noEmit`（即时类型检查）
 - **SubagentStop** → `npm run check`（subagent 结束后全套 lint + build + test）
