@@ -5,6 +5,7 @@
 import type { TurnRecord } from "./types.js";
 
 export const MAX_OBSERVATION_CHARS = 2000;
+export const MAX_SUMMARY_CHARS = 4000;
 
 // --- Public interfaces ---
 
@@ -127,6 +128,9 @@ export class MemoryManager {
     if (briefLines.length > 0) parts.push(`Recent compressed history: ${briefLines.join(" | ")}`);
 
     this.summary = parts.join(" || ");
+    if (this.summary.length > MAX_SUMMARY_CHARS) {
+      this.summary = this.summary.slice(-MAX_SUMMARY_CHARS);
+    }
     return true;
   }
 

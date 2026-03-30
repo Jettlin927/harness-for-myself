@@ -2,7 +2,7 @@
  * AnthropicLLM — Anthropic Messages API adapter with native tool_use support.
  */
 
-import type { ToolSchema } from "./types.js";
+import type { ToolSchema, TokenUsage } from "./types.js";
 import { BaseLLM, buildSystemPrompt } from "./llm.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -22,6 +22,10 @@ export function isRetryable(err: Error): boolean {
   return false;
 }
 
+// --- Cache control constant ---
+
+const CACHE_CONTROL_EPHEMERAL = { type: "ephemeral" } as const;
+
 // --- Message type ---
 
 interface Message {
@@ -38,6 +42,7 @@ export class AnthropicLLM extends BaseLLM {
   extraInstructions: string;
   declare onToken?: (token: string) => void;
   private _client: any;
+  private _cachedTools: any[] | null = null;
 
   constructor(options?: {
     apiKey?: string;
@@ -47,8 +52,9 @@ export class AnthropicLLM extends BaseLLM {
   }) {
     super();
     this.model = options?.model ?? "claude-sonnet-4-20250514";
-    this.toolSchemas = options?.toolSchemas ?? [];
+    this.toolSchemas = [];
     this.extraInstructions = "";
+    this.setToolSchemas(options?.toolSchemas ?? []);
     this.apiKey = AnthropicLLM._resolveApiKey(options?.apiKey);
 
     // Dynamically import Anthropic SDK
@@ -69,6 +75,13 @@ export class AnthropicLLM extends BaseLLM {
 
   setToolSchemas(schemas: ToolSchema[]): void {
     this.toolSchemas = schemas;
+    this._cachedTools = schemas.length > 0
+      ? schemas.map((s, i) =>
+          i === schemas.length - 1
+            ? { ...s, cache_control: CACHE_CONTROL_EPHEMERAL }
+            : s,
+        )
+      : null;
   }
 
   async generate(workingMemory: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -81,12 +94,14 @@ export class AnthropicLLM extends BaseLLM {
 
     const kwargs: Record<string, unknown> = {
       model: this.model,
-      system: systemPrompt,
+      system: [
+        { type: "text", text: systemPrompt, cache_control: CACHE_CONTROL_EPHEMERAL },
+      ],
       messages,
       max_tokens: 4096,
     };
-    if (this.toolSchemas.length > 0) {
-      kwargs.tools = this.toolSchemas;
+    if (this._cachedTools) {
+      kwargs.tools = this._cachedTools;
     }
 
     if (this.onToken) {
@@ -161,7 +176,14 @@ export class AnthropicLLM extends BaseLLM {
         ? firstParts.join("\n")
         : JSON.stringify(workingMemory, null, 2);
 
-    const messages: Message[] = [{ role: "user", content: firstMsg }];
+    const messages: Message[] = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: firstMsg, cache_control: CACHE_CONTROL_EPHEMERAL },
+        ],
+      },
+    ];
 
     for (const turn of history) {
       const action = turn.action ?? {};
@@ -253,11 +275,14 @@ export class AnthropicLLM extends BaseLLM {
 
     // Extract usage information
     if (response.usage) {
-      result._usage = {
+      const usage: TokenUsage = {
         input_tokens: response.usage.input_tokens,
         output_tokens: response.usage.output_tokens,
+        cache_creation_input_tokens: response.usage.cache_creation_input_tokens ?? 0,
+        cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
         total_tokens: response.usage.input_tokens + response.usage.output_tokens,
       };
+      result._usage = usage;
     }
 
     return result;

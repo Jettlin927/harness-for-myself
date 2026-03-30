@@ -113,7 +113,10 @@ describe("AnthropicLLM — tool_use response parsing", () => {
 
     await llm.generate({ goal: "echo", history: [] });
     const callArgs = mockClient.messages.create.mock.calls[0][0];
-    expect(callArgs.tools).toEqual(schemas);
+    // Last tool gets cache_control marker
+    expect(callArgs.tools).toEqual([
+      { ...schemas[0], cache_control: { type: "ephemeral" } },
+    ]);
   });
 
   it("omits tools kwarg when no schemas", async () => {
@@ -204,7 +207,9 @@ describe("AnthropicLLM — setToolSchemas", () => {
     await llm.generate({ goal: "test", history: [] });
 
     const callArgs = mockClient.messages.create.mock.calls[0][0];
-    expect(callArgs.tools).toEqual(newSchemas);
+    expect(callArgs.tools).toEqual([
+      { ...newSchemas[0], cache_control: { type: "ephemeral" } },
+    ]);
   });
 });
 
@@ -257,7 +262,9 @@ describe("AnthropicLLM — _buildMessages", () => {
     const msgs = AnthropicLLM._buildMessages(wm);
     expect(msgs).toHaveLength(1);
     expect(msgs[0].role).toBe("user");
-    expect(msgs[0].content).toContain("Goal: do something");
+    // First message content is now a block array with cache_control
+    const text = (msgs[0].content as any[])[0].text;
+    expect(text).toContain("Goal: do something");
   });
 
   it("includes summary in first message", () => {
@@ -268,8 +275,9 @@ describe("AnthropicLLM — _buildMessages", () => {
       history: [],
     };
     const msgs = AnthropicLLM._buildMessages(wm);
-    expect(msgs[0].content).toContain("Summary: Previously read file a.py");
-    expect(msgs[0].content).toContain("Context:");
+    const text = (msgs[0].content as any[])[0].text;
+    expect(text).toContain("Summary: Previously read file a.py");
+    expect(text).toContain("Context:");
   });
 
   it("tool_call history produces tool_use and tool_result blocks", () => {
@@ -395,8 +403,9 @@ describe("AnthropicLLM — _buildMessages", () => {
     const msgs = AnthropicLLM._buildMessages(wm);
     expect(msgs).toHaveLength(1);
     expect(msgs[0].role).toBe("user");
-    expect(msgs[0].content).toContain("Schema feedback");
-    expect(msgs[0].content).toContain("Invalid output format");
+    const text = (msgs[0].content as any[])[0].text;
+    expect(text).toContain("Schema feedback");
+    expect(text).toContain("Invalid output format");
   });
 
   it("tool_result uses structured JSON data (Bug C)", () => {
@@ -425,12 +434,15 @@ describe("AnthropicLLM — _buildMessages", () => {
       ],
     };
     const msgs = AnthropicLLM._buildMessages(wm);
-    // Find the user message with tool_result block
+    // Find the user message with tool_result block (skip first msg which has cache_control text blocks)
     const toolResultMsgs = msgs.filter(
-      (m) => m.role === "user" && Array.isArray(m.content),
+      (m) =>
+        m.role === "user" &&
+        Array.isArray(m.content) &&
+        (m.content as any[]).some((b: any) => b.type === "tool_result"),
     );
     expect(toolResultMsgs.length).toBeGreaterThan(0);
-    const block = (toolResultMsgs[0].content as any[])[0];
+    const block = (toolResultMsgs[0].content as any[]).find((b: any) => b.type === "tool_result");
     expect(block.type).toBe("tool_result");
     const content = block.content as string;
     // Should be valid JSON

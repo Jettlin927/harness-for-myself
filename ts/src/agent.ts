@@ -11,8 +11,8 @@ import type {
   TrustLevel,
   TurnRecord,
 } from "./types.js";
-import { toolError } from "./types.js";
-import { SchemaError } from "./types.js";
+import { toolError, SchemaError } from "./types.js";
+import type { TokenUsage } from "./types.js";
 import { parseLLMAction } from "./schema.js";
 import { ToolDispatcher, registerCodingTools } from "./tools.js";
 import { MemoryManager, type WorkingMemory } from "./memory.js";
@@ -196,6 +196,8 @@ export class HarnessAgent {
     };
 
     let totalTokens = 0;
+    let cacheReadTokens = 0;
+    let cacheCreateTokens = 0;
 
     for (let step = 0; step < this.config.max_steps; step++) {
       stopReason =
@@ -221,9 +223,11 @@ export class HarnessAgent {
         !Array.isArray(raw) &&
         "_usage" in (raw as Record<string, unknown>)
       ) {
-        const usage = (raw as Record<string, unknown>)._usage;
-        if (typeof usage === "object" && usage !== null) {
-          totalTokens += ((usage as Record<string, unknown>).total_tokens as number) ?? 0;
+        const usage = (raw as Record<string, unknown>)._usage as TokenUsage | undefined;
+        if (usage) {
+          totalTokens += usage.total_tokens ?? 0;
+          cacheReadTokens += usage.cache_read_input_tokens ?? 0;
+          cacheCreateTokens += usage.cache_creation_input_tokens ?? 0;
         }
       }
       if (
@@ -310,6 +314,8 @@ export class HarnessAgent {
           log_path: logger.path,
           snapshot_path: snapshotPath,
           total_tokens: totalTokens,
+          cache_read_tokens: cacheReadTokens,
+          cache_create_tokens: cacheCreateTokens,
         };
       }
 
@@ -378,6 +384,8 @@ export class HarnessAgent {
       log_path: logger.path,
       snapshot_path: snapshotPath,
       total_tokens: totalTokens,
+      cache_read_tokens: cacheReadTokens,
+      cache_create_tokens: cacheCreateTokens,
     };
   }
 

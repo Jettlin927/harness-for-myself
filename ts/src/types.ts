@@ -66,6 +66,17 @@ export interface RunResult {
   log_path: string;
   snapshot_path: string | null;
   total_tokens: number;
+  cache_read_tokens: number;
+  cache_create_tokens: number;
+}
+
+/** Token usage breakdown from a single LLM call (includes cache stats). */
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+  total_tokens: number;
 }
 
 /** Tool schema for Anthropic-compatible API. */
