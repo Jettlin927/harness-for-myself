@@ -222,11 +222,15 @@ export function registerCodingTools(
       path: { type: "string", description: "Absolute file path" },
       old_text: {
         type: "string",
-        description: "Text to find (must match exactly once)",
+        description: "Text to find (must match exactly once unless replace_all is true)",
       },
       new_text: {
         type: "string",
         description: "Replacement text",
+      },
+      replace_all: {
+        type: "boolean",
+        description: "Replace all occurrences (default false)",
       },
     },
     required: ["path", "old_text", "new_text"],
@@ -235,11 +239,11 @@ export function registerCodingTools(
   dispatcher.registerTool("write_file", writeFileTool, {
     type: "object",
     description:
-      "Create a new file with the given content. Refuses to overwrite existing files — use edit_file instead.",
+      "Write content to a file. Creates parent directories if needed. Overwrites existing files.",
     properties: {
       path: {
         type: "string",
-        description: "Absolute file path for the new file",
+        description: "Absolute file path",
       },
       content: { type: "string", description: "Content to write" },
     },
@@ -268,7 +272,8 @@ export function registerCodingTools(
 
   dispatcher.registerTool("grep_search", grepSearch, {
     type: "object",
-    description: "Search file contents with regex",
+    description:
+      "Search file contents with regex. Uses ripgrep when available, falls back to JS implementation.",
     properties: {
       pattern: {
         type: "string",
@@ -282,6 +287,10 @@ export function registerCodingTools(
         type: "string",
         description: "Glob filter for filenames (e.g. '*.py')",
       },
+      type: {
+        type: "string",
+        description: "File type filter (e.g. 'js', 'py') — requires ripgrep",
+      },
       limit: {
         type: "integer",
         description: "Max matches to return (default 50)",
@@ -289,6 +298,11 @@ export function registerCodingTools(
       context_lines: {
         type: "integer",
         description: "Lines of context around each match (default 0)",
+      },
+      output_mode: {
+        type: "string",
+        enum: ["content", "files_with_matches", "count"],
+        description: "Output mode (default 'content')",
       },
     },
     required: ["pattern", "root"],
@@ -317,7 +331,11 @@ export function registerCodingTools(
         },
         timeout: {
           type: "integer",
-          description: "Timeout in seconds (default 30)",
+          description: "Timeout in seconds (default 120, max 600)",
+        },
+        cwd: {
+          type: "string",
+          description: "Working directory for the command",
         },
       },
       required: ["command"],

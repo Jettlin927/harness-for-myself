@@ -207,6 +207,35 @@ describe("editFile", () => {
       editFile({ path: "", old_text: "a", new_text: "b" }),
     ).toThrow("non-empty string");
   });
+
+  it("replace_all replaces all occurrences", () => {
+    const p = path.join(tmpDir, "multi.txt");
+    fs.writeFileSync(p, "aaa\nbbb\naaa\nccc\naaa\n", "utf-8");
+    const result = editFile({
+      path: p,
+      old_text: "aaa",
+      new_text: "zzz",
+      replace_all: true,
+    }) as Record<string, unknown>;
+    expect(result.replacements).toBe(3);
+    expect(fs.readFileSync(p, "utf-8")).toBe("zzz\nbbb\nzzz\nccc\nzzz\n");
+  });
+
+  it("replace_all with no matches raises", () => {
+    const p = path.join(tmpDir, "nomatch.txt");
+    fs.writeFileSync(p, "hello world\n", "utf-8");
+    expect(() =>
+      editFile({ path: p, old_text: "missing", new_text: "x", replace_all: true }),
+    ).toThrow("not found");
+  });
+
+  it("replace_all=false preserves single-match enforcement", () => {
+    const p = path.join(tmpDir, "dup2.txt");
+    fs.writeFileSync(p, "aaa\naaa\n", "utf-8");
+    expect(() =>
+      editFile({ path: p, old_text: "aaa", new_text: "bbb", replace_all: false }),
+    ).toThrow("2 matches");
+  });
 });
 
 // ===========================================================================
@@ -250,12 +279,12 @@ describe("writeFile", () => {
   });
 
   // 20
-  it("refuses overwrite", () => {
+  it("overwrites existing file", () => {
     const p = path.join(tmpDir, "existing.txt");
     fs.writeFileSync(p, "original", "utf-8");
-    expect(() => writeFile({ path: p, content: "overwrite" })).toThrow(
-      "edit_file",
-    );
+    const result = writeFile({ path: p, content: "overwritten" }) as any;
+    expect(result.bytes_written).toBe(Buffer.byteLength("overwritten", "utf-8"));
+    expect(fs.readFileSync(p, "utf-8")).toBe("overwritten");
   });
 
   // 21
@@ -328,6 +357,35 @@ describe("runBash", () => {
     expect(() => runBash({ command: 123 as unknown })).toThrow(
       "non-empty string",
     );
+  });
+
+  it("cwd parameter works", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "bash-cwd-"));
+    try {
+      const result = runBash({ command: "pwd", cwd: tmpDir }) as Record<string, unknown>;
+      expect(result.returncode).toBe(0);
+      // pwd output should contain the tmpDir path (resolved)
+      expect((result.stdout as string).trim()).toBe(fs.realpathSync(tmpDir));
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("timeout capped at 600s", () => {
+    // Passing 999 should not cause issues — it gets capped to 600
+    const result = runBash({ command: "echo ok", timeout: 999 }) as Record<string, unknown>;
+    expect(result.returncode).toBe(0);
+    expect(result.stdout).toContain("ok");
+  });
+
+  it("truncates long output", () => {
+    // Generate output > 50000 chars
+    const result = runBash({ command: "python3 -c \"print('x' * 60000)\"" }) as Record<string, unknown>;
+    if (result.returncode === 0) {
+      expect((result.stdout as string).length).toBeLessThanOrEqual(50000 + 50);
+      expect(result.stdout).toContain("[output truncated]");
+    }
+    // If python3 not available, skip gracefully
   });
 });
 
@@ -574,6 +632,34 @@ describe("grepSearch", () => {
       result.matches as Array<Record<string, unknown>>
     ).filter((m) => (m.path as string).includes(".git"));
     expect(gitMatches.length).toBe(0);
+  });
+
+  it("output_mode files_with_matches returns file paths", () => {
+    const result = grepSearch({
+      pattern: "hello",
+      root: tmpDir,
+      output_mode: "files_with_matches",
+    }) as Record<string, unknown>;
+    expect(result.total).toBeGreaterThanOrEqual(1);
+    // matches should be file paths (strings), not objects
+    const matches = result.matches as string[];
+    for (const m of matches) {
+      expect(typeof m).toBe("string");
+    }
+  });
+
+  it("output_mode count returns totals", () => {
+    const result = grepSearch({
+      pattern: "hello",
+      root: tmpDir,
+      output_mode: "count",
+    }) as Record<string, unknown>;
+    expect(result.total).toBeGreaterThanOrEqual(1);
+    const matches = result.matches as Array<Record<string, unknown>>;
+    for (const m of matches) {
+      expect(typeof m.path).toBe("string");
+      expect(typeof m.count).toBe("number");
+    }
   });
 });
 

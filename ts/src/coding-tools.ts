@@ -100,6 +100,7 @@ export function editFile(args: Record<string, unknown>): unknown {
   }
 
   const content = fs.readFileSync(filePath, "utf-8");
+  const replaceAll = (args.replace_all as boolean) ?? false;
 
   // Count occurrences
   let count = 0;
@@ -114,13 +115,15 @@ export function editFile(args: Record<string, unknown>): unknown {
   if (count === 0) {
     throw new Error("old_text not found in file");
   }
-  if (count > 1) {
+  if (!replaceAll && count > 1) {
     throw new Error(
       `Found ${count} matches for old_text, provide more context to make it unique`,
     );
   }
 
-  const newContent = content.replace(oldText, newText);
+  const newContent = replaceAll
+    ? content.split(oldText).join(newText)
+    : content.replace(oldText, newText);
 
   // Generate unified diff
   const fileName = nodePath.basename(filePath);
@@ -135,7 +138,7 @@ export function editFile(args: Record<string, unknown>): unknown {
 
   fs.writeFileSync(filePath, newContent, "utf-8");
 
-  return { path: filePath, replacements: 1, diff };
+  return { path: filePath, replacements: count, diff };
 }
 
 // ---------------------------------------------------------------------------
@@ -156,12 +159,6 @@ export function writeFile(args: Record<string, unknown>): unknown {
     throw new Error("write_file requires a string 'content'.");
   }
 
-  if (fs.existsSync(filePath)) {
-    throw new Error(
-      `File already exists: ${filePath} — use edit_file to modify existing files.`,
-    );
-  }
-
   const dir = nodePath.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(filePath, content, "utf-8");
@@ -176,17 +173,27 @@ export function writeFile(args: Record<string, unknown>): unknown {
 // run_bash
 // ---------------------------------------------------------------------------
 
+const MAX_OUTPUT_CHARS = 50000;
+
+function truncateOutput(text: string): string {
+  if (text.length <= MAX_OUTPUT_CHARS) return text;
+  return text.slice(0, MAX_OUTPUT_CHARS) + "\n[output truncated]";
+}
+
 export function runBash(args: Record<string, unknown>): unknown {
   const command = args.command;
   if (typeof command !== "string" || !command.trim()) {
     throw new Error("run_bash requires a non-empty string 'command'.");
   }
 
-  const timeout = ((args.timeout as number) ?? 30) * 1000; // seconds to ms
+  const timeoutSec = Math.min((args.timeout as number) ?? 120, 600);
+  const timeout = timeoutSec * 1000;
+  const cwd = (args.cwd as string) ?? process.cwd();
 
   try {
     const result = childProcess.spawnSync("sh", ["-c", command], {
       timeout,
+      cwd,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -194,20 +201,20 @@ export function runBash(args: Record<string, unknown>): unknown {
     if (result.error && (result.error as NodeJS.ErrnoException).code === "ETIMEDOUT") {
       return {
         stdout: "",
-        stderr: `Command timed out after ${(args.timeout as number) ?? 30}s: ${command}`,
+        stderr: `Command timed out after ${timeoutSec}s: ${command}`,
         returncode: -1,
       };
     }
 
     return {
-      stdout: result.stdout ?? "",
-      stderr: result.stderr ?? "",
+      stdout: truncateOutput(result.stdout ?? ""),
+      stderr: truncateOutput(result.stderr ?? ""),
       returncode: result.status ?? -1,
     };
   } catch {
     return {
       stdout: "",
-      stderr: `Command timed out after ${(args.timeout as number) ?? 30}s: ${command}`,
+      stderr: `Command timed out after ${timeoutSec}s: ${command}`,
       returncode: -1,
     };
   }
@@ -257,27 +264,119 @@ export function globFiles(args: Record<string, unknown>): unknown {
 
 const SKIP_DIRS = new Set([".git", "node_modules", "__pycache__"]);
 
-export function grepSearch(args: Record<string, unknown>): unknown {
-  const pattern = args.pattern;
-  if (typeof pattern !== "string" || !pattern.trim()) {
-    throw new Error("grep_search requires a non-empty string 'pattern'.");
+type OutputMode = "content" | "files_with_matches" | "count";
+
+// --- ripgrep integration ---
+
+let _rgAvailable: boolean | null = null;
+
+function isRipgrepAvailable(): boolean {
+  if (_rgAvailable !== null) return _rgAvailable;
+  const check = childProcess.spawnSync("rg", ["--version"], {
+    encoding: "utf-8",
+    timeout: 5000,
+  });
+  _rgAvailable = !check.error;
+  return _rgAvailable;
+}
+
+function grepWithRipgrep(
+  pattern: string,
+  root: string,
+  options: {
+    include?: string;
+    type?: string;
+    limit: number;
+    contextLines: number;
+    outputMode: OutputMode;
+  },
+): unknown | null {
+  if (!isRipgrepAvailable()) return null;
+
+  const rgArgs = [pattern, root, "--no-heading", "--line-number", "--color", "never"];
+  if (options.include) rgArgs.push("--glob", options.include);
+  if (options.type) rgArgs.push("--type", options.type);
+  if (options.contextLines > 0) rgArgs.push("-C", String(options.contextLines));
+
+  if (options.outputMode === "files_with_matches") {
+    rgArgs.push("-l");
+  } else if (options.outputMode === "count") {
+    rgArgs.push("-c");
   }
 
-  const root = args.root;
-  if (typeof root !== "string" || !root.trim()) {
-    throw new Error("grep_search requires a non-empty string 'root'.");
-  }
-  if (!nodePath.isAbsolute(root)) {
-    throw new Error("grep_search requires an absolute 'root'.");
-  }
-  if (!fs.existsSync(root)) {
-    throw new Error(`Root directory not found: ${root}`);
+  // Limit via --max-count (per file) — we'll also truncate results
+  rgArgs.push("--max-count", String(options.limit));
+
+  const result = childProcess.spawnSync("rg", rgArgs, {
+    encoding: "utf-8",
+    timeout: 30000,
+  });
+
+  // rg exit code 1 = no matches (not an error), 2 = actual error
+  if (result.error || result.status === 2) return null;
+
+  const stdout = result.stdout ?? "";
+
+  if (options.outputMode === "files_with_matches") {
+    const files = stdout.trim().split("\n").filter(Boolean);
+    const truncated = files.length >= options.limit;
+    return {
+      matches: files.slice(0, options.limit),
+      total: files.length,
+      truncated,
+    };
   }
 
-  const include = args.include as string | undefined;
-  const limit = (args.limit as number) ?? 50;
-  const contextLines = (args.context_lines as number) ?? 0;
+  if (options.outputMode === "count") {
+    // rg -c outputs "file:count" per file
+    let totalCount = 0;
+    const entries: Array<{ path: string; count: number }> = [];
+    for (const line of stdout.trim().split("\n").filter(Boolean)) {
+      const sep = line.lastIndexOf(":");
+      if (sep === -1) continue;
+      const file = line.slice(0, sep);
+      const cnt = parseInt(line.slice(sep + 1), 10);
+      if (!isNaN(cnt)) {
+        totalCount += cnt;
+        entries.push({ path: file, count: cnt });
+      }
+    }
+    return { matches: entries, total: totalCount, truncated: false };
+  }
 
+  // content mode: parse "file:line:content"
+  const matches: Array<{ path: string; line: number; content: string }> = [];
+  for (const line of stdout.split("\n")) {
+    if (matches.length >= options.limit) break;
+    if (!line) continue;
+    // Format: /path/to/file:linenum:content
+    const firstColon = line.indexOf(":");
+    if (firstColon === -1) continue;
+    const secondColon = line.indexOf(":", firstColon + 1);
+    if (secondColon === -1) continue;
+    const filePath = line.slice(0, firstColon);
+    const lineNum = parseInt(line.slice(firstColon + 1, secondColon), 10);
+    const content = line.slice(secondColon + 1);
+    if (!isNaN(lineNum)) {
+      matches.push({ path: filePath, line: lineNum, content });
+    }
+  }
+
+  const total = matches.length;
+  const truncated = total >= options.limit;
+  return { matches: matches.slice(0, options.limit), total, truncated };
+}
+
+// --- JS fallback grep ---
+
+function grepSearchFallback(
+  pattern: string,
+  root: string,
+  include: string | undefined,
+  limit: number,
+  contextLines: number,
+  outputMode: OutputMode,
+): unknown {
   let regex: RegExp;
   try {
     regex = new RegExp(pattern);
@@ -294,32 +393,25 @@ export function grepSearch(args: Record<string, unknown>): unknown {
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
-      return; // permission error
+      return;
     }
     entries.sort((a, b) => a.name.localeCompare(b.name));
 
     for (const entry of entries) {
       if (matches.length >= limit) return;
-
       const fullPath = nodePath.join(dir, entry.name);
-
       if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) {
-          walk(fullPath);
-        }
+        if (!SKIP_DIRS.has(entry.name)) walk(fullPath);
       } else if (entry.isFile()) {
-        if (include && !matchGlob(entry.name, include)) {
-          continue;
-        }
+        if (include && !matchGlob(entry.name, include)) continue;
         searchFile(fullPath);
       }
     }
   }
 
   function matchGlob(fileName: string, globPattern: string): boolean {
-    // Simple glob matching for include filter
     if (globPattern.startsWith("*.")) {
-      const ext = globPattern.slice(1); // e.g. ".py"
+      const ext = globPattern.slice(1);
       return fileName.endsWith(ext);
     }
     return fileName === globPattern;
@@ -330,10 +422,8 @@ export function grepSearch(args: Record<string, unknown>): unknown {
     try {
       text = fs.readFileSync(filePath, "utf-8");
     } catch {
-      return; // binary or permission error
+      return;
     }
-
-    // Skip files with null bytes (binary files)
     if (text.includes("\0")) return;
 
     const lines = text.split("\n");
@@ -354,14 +444,65 @@ export function grepSearch(args: Record<string, unknown>): unknown {
   }
 
   walk(root);
+
+  if (outputMode === "files_with_matches") {
+    const files = [...new Set(matches.map((m) => m.path))];
+    return { matches: files, total: files.length, truncated: files.length >= limit };
+  }
+  if (outputMode === "count") {
+    const counts = new Map<string, number>();
+    for (const m of matches) counts.set(m.path, (counts.get(m.path) ?? 0) + 1);
+    let totalCount = 0;
+    const entries: Array<{ path: string; count: number }> = [];
+    for (const [p, c] of counts) {
+      totalCount += c;
+      entries.push({ path: p, count: c });
+    }
+    return { matches: entries, total: totalCount, truncated: false };
+  }
+
   const total = matches.length;
   const truncated = total >= limit;
+  return { matches: matches.slice(0, limit), total, truncated };
+}
 
-  return {
-    matches: matches.slice(0, limit),
-    total,
-    truncated,
-  };
+// --- Public grep_search entry point ---
+
+export function grepSearch(args: Record<string, unknown>): unknown {
+  const pattern = args.pattern;
+  if (typeof pattern !== "string" || !pattern.trim()) {
+    throw new Error("grep_search requires a non-empty string 'pattern'.");
+  }
+
+  const root = args.root;
+  if (typeof root !== "string" || !root.trim()) {
+    throw new Error("grep_search requires a non-empty string 'root'.");
+  }
+  if (!nodePath.isAbsolute(root)) {
+    throw new Error("grep_search requires an absolute 'root'.");
+  }
+  if (!fs.existsSync(root)) {
+    throw new Error(`Root directory not found: ${root}`);
+  }
+
+  const include = args.include as string | undefined;
+  const fileType = args.type as string | undefined;
+  const limit = (args.limit as number) ?? 50;
+  const contextLines = (args.context_lines as number) ?? 0;
+  const outputMode = (args.output_mode as OutputMode) ?? "content";
+
+  // Try ripgrep first
+  const rgResult = grepWithRipgrep(pattern, root, {
+    include,
+    type: fileType,
+    limit,
+    contextLines,
+    outputMode,
+  });
+  if (rgResult !== null) return rgResult;
+
+  // Fallback to JS implementation (type filter not supported in fallback)
+  return grepSearchFallback(pattern, root, include, limit, contextLines, outputMode);
 }
 
 // ---------------------------------------------------------------------------
