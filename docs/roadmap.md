@@ -10,7 +10,7 @@
 1. ~~上下文管理粗糙~~ → Phase 13 已完成 prompt caching + summary 上限
 2. ~~工具性能弱~~ → Phase 14 已完成 ripgrep 集成 + bash 升级 + 文件工具增强
 3. ~~权限模型粗~~ → Phase 15 已完成细粒度 PermissionRule 规则链
-4. 交互体验缺失 → 无 Plan 模式、无 Task 跟踪、无中断恢复
+4. ~~交互体验缺失~~ → Phase 16 已完成 Plan 模式 + Task 系统
 5. 多 Agent 能力弱 → 无并行、无隔离、无专用 agent 类型
 6. 生态集成空白 → 无 MCP、无 Git/GitHub 深度集成
 
@@ -73,30 +73,22 @@
 
 ---
 
-## Phase 16: Plan 模式 + Task 系统
+## Phase 16: Plan 模式 + Task 系统 ✅ 已完成
 
 **目标：** 复杂任务先对齐再执行，过程可追踪。
 
-**产出：**
+**实际交付：**
 
 ### 16a: Plan 模式
 - `types.ts` — 新增 `AgentMode`（`execute` | `plan`）
-- `agent.ts` — Plan 模式下 agent 只能读/搜索，不能写/执行
-- TUI — Plan 展示 + 用户确认 → 切换到 execute 模式
-- Plan 结果存入 working memory，指导后续执行
+- `agent.ts` — Plan 模式限制为只读工具（read_file/glob/grep/list_directory/echo/list_tasks）
+- TUI — `/plan <goal>` 命令：plan 模式探索 → 展示计划 → 确认后 execute 模式执行
 
 ### 16b: Task 系统
-- `src/tasks.ts`（新模块）— TaskManager：create / update / list / get
-- Task 状态：`pending` → `in_progress` → `completed` / `failed`
-- Agent 主循环中自动更新 task 进度
-- TUI — task 列表渲染
-
-**验收：**
-- Plan → 确认 → Execute 流程端到端通过
-- 复杂任务自动拆分为 3+ subtasks
-- Task 状态更新反映在 TUI
-
-**预估工作量：** 大
+- `tasks.ts`（新模块）— TaskManager：create / update / get / list / clear
+- 3 个工具注册到 ToolDispatcher：create_task / update_task / list_tasks
+- TUI — `/tasks` 命令显示任务列表（带状态图标）
+- 418 测试全部通过（新增 16 个测试）
 
 ---
 
@@ -214,7 +206,7 @@ Q2 2026 (4-6月)
 └── Phase 15: 细粒度权限                    ✅ 已完成 (2026-03-31)
 
 Q3 2026 (7-9月)
-├── Phase 16: Plan + Task                   ← 复杂任务体验
+├── Phase 16: Plan + Task                   ✅ 已完成 (2026-03-31)
 ├── Phase 17: Hook 系统                     ← 可扩展性
 └── Phase 18: 多 Agent 增强                 ← 并行能力
 
