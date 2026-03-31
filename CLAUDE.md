@@ -11,9 +11,9 @@
 
 ## 当前状态
 
-**TypeScript 重写已完成，Phase 13-18 已完成。** 24 个模块、432 个测试全部通过。
+**TypeScript 重写已完成，Phase 13-20 全部完成。** 25 个模块、442 个测试全部通过。
 
-功能清单：编程工具（7 个，含 ripgrep 集成）、Anthropic 原生 tool_use、**Prompt Caching（三段缓存）**、流式输出、**细粒度权限规则链**、**Plan 模式 + Task 系统**、**Hook 系统（Pre/PostToolUse）**、**Agent 类型系统（explore/plan/general-purpose）**、项目上下文注入、子 Agent 生成、Skill 系统、跨会话记忆、网络重试、原子快照、评估框架。
+功能清单：编程工具（8 个，含 ripgrep + web_fetch）、Anthropic 原生 tool_use、**Prompt Caching（三段缓存）**、流式输出、**细粒度权限规则链**、**Plan 模式 + Task 系统**、**Hook 系统（Pre/PostToolUse）**、**Agent 类型系统（explore/plan/general-purpose）**、**Git 危险命令护栏**、**MCP 基础框架**、项目上下文注入、子 Agent 生成、Skill 系统、跨会话记忆、网络重试、原子快照、评估框架。
 
 ## 项目结构
 

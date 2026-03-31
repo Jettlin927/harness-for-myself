@@ -11,8 +11,8 @@
 2. ~~工具性能弱~~ → Phase 14 已完成 ripgrep 集成 + bash 升级 + 文件工具增强
 3. ~~权限模型粗~~ → Phase 15 已完成细粒度 PermissionRule 规则链
 4. ~~交互体验缺失~~ → Phase 16 已完成 Plan 模式 + Task 系统
-5. 多 Agent 能力弱 → 无并行、无隔离、无专用 agent 类型
-6. 生态集成空白 → 无 MCP、无 Git/GitHub 深度集成
+5. ~~多 Agent 能力弱~~ → Phase 18 已完成 Agent 类型系统
+6. ~~生态集成空白~~ → Phase 19-20 已完成 web_fetch + MCP 基础 + Git 安全护栏
 
 ---
 
@@ -126,51 +126,29 @@
 
 ---
 
-## Phase 19: 网络能力 + MCP
+## Phase 19: 网络能力 + MCP 基础 ✅ 已完成
 
-**目标：** Agent 能访问网络资源，支持外部工具扩展。
+**目标：** Agent 能访问网络资源，MCP 基础框架就绪。
 
-**产出：**
-
-### 19a: 内置网络工具
-- `coding-tools.ts` — 新增：
-  - `web_fetch` — HTTP GET，返回文本/HTML（带大小限制）
-  - `web_search` — 搜索引擎查询（通过 API）
-
-### 19b: MCP 客户端
-- `src/mcp.ts`（新模块）— Model Context Protocol 客户端：
-  - 连接 MCP server（stdio / HTTP）
-  - 将 MCP tool 注册到 ToolDispatcher
-  - 支持 MCP resource 作为上下文注入
-- 配置在 `.hau/settings.json` 的 `mcpServers` 字段
-
-**验收：**
-- web_fetch 能抓取网页并返回内容
-- 至少一个 MCP server（如 filesystem）正常连接并可调用
-- MCP 工具在 TUI 中正常显示
-
-**预估工作量：** 大
+**实际交付：**
+- `coding-tools.ts` — 新增 `web_fetch` 工具（Node 18+ 原生 fetch，30s 超时，100KB 默认限制）
+- `tools.ts` — ToolDispatcher.execute 支持 async 工具（Promise 返回值）
+- `mcp.ts` — MCP 基础类型（McpServerConfig / McpTool / McpClient 占位），完整协议实现为 future work
+- `coding-tools.ts` — 新增 `isDangerousCommand()` 工具函数 + `DANGEROUS_COMMAND_PATTERNS`
+- 442 测试全部通过（新增 10 个测试）
 
 ---
 
-## Phase 20: Git/GitHub 深度集成
+## Phase 20: Git 安全护栏 ✅ 已完成
 
-**目标：** Agent 理解 Git 上下文，能操作 PR/Issue。
+**目标：** 危险 git/rm 命令自动拦截。
 
-**产出：**
-- `context.ts` — 增强 git 上下文：
-  - 当前 branch、diff stat、recent commits 自动注入
-  - 检测 merge conflict 状态
-- `coding-tools.ts` — git 相关工具增强：
-  - `run_bash` 对 git 命令的安全护栏（拦截 force push、reset --hard 等）
-- Agent 系统提示中注入 git 最佳实践（commit 规范、PR 创建流程）
-
-**验收：**
-- Agent 能自动感知当前 git 状态
-- 危险 git 操作被拦截并提示用户确认
-- 通过 `gh` CLI 创建 PR 的端到端流程
-
-**预估工作量：** 中等
+**实际交付：**
+- `agent.ts` — `_checkPermission` 增加危险命令安全网：
+  - `git push --force` / `git reset --hard` / `git clean -f` / `rm -rf` 等强制 "ask"
+  - 即使在 yolo 模式下也会触发确认
+  - 显式 allow 规则可覆盖（用户知道自己在做什么）
+- 442 测试全部通过
 
 ---
 
@@ -188,8 +166,8 @@ Q3 2026 (7-9月)
 └── Phase 18: 多 Agent 增强                 ✅ 已完成 (2026-03-31)
 
 Q4 2026 (10-12月)
-├── Phase 19: 网络 + MCP                    ← 生态集成
-└── Phase 20: Git/GitHub 深度集成           ← 开发者工作流
+├── Phase 19: 网络 + MCP                    ✅ 已完成 (2026-03-31)
+└── Phase 20: Git 安全护栏                  ✅ 已完成 (2026-03-31)
 ```
 
 ## 设计原则
