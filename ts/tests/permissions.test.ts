@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HarnessAgent } from "../src/agent.js";
+import type { PermissionRule } from "../src/types.js";
 import { ScriptedLLM } from "../src/llm.js";
 
 // ---------------------------------------------------------------------------
@@ -184,11 +185,11 @@ describe("TestTrustEndToEnd", () => {
 describe("PermissionRules", () => {
   function makeAgentWithRules(
     trust: string,
-    rules: Array<{ tool: string; pattern?: string; decision: string }>,
+    rules: PermissionRule[],
   ): HarnessAgent {
     return new HarnessAgent(new ScriptedLLM([]), {
       trust_level: trust as "ask" | "auto-edit" | "yolo",
-      permission_rules: rules as any,
+      permission_rules: rules,
     });
   }
 

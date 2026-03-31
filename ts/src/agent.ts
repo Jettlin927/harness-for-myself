@@ -545,16 +545,19 @@ export class HarnessAgent {
       : "allow";
   }
 
+  private static readonly _FILE_PATH_TOOLS = new Set([
+    "edit_file",
+    "write_file",
+    "read_file",
+    "write_text_file",
+  ]);
+
   private static _extractTarget(
     toolName: string,
     args: Record<string, unknown>,
   ): string {
     if (toolName === "bash") return (args.command as string) ?? "";
-    if (
-      ["edit_file", "write_file", "read_file", "write_text_file"].includes(
-        toolName,
-      )
-    )
+    if (HarnessAgent._FILE_PATH_TOOLS.has(toolName))
       return (args.path as string) ?? "";
     return "";
   }

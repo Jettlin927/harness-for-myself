@@ -26,9 +26,9 @@ export interface WorkingMemory {
 // --- Helper functions (exported for testing) ---
 
 /** Truncate `text` to `limit` chars, appending a marker if cut. */
-export function truncateStr(text: string, limit: number): string {
+export function truncateStr(text: string, limit: number, marker?: string): string {
   if (text.length <= limit) return text;
-  return text.slice(0, limit) + `\n[observation truncated at ${limit} chars]`;
+  return text.slice(0, limit) + (marker ?? `\n[observation truncated at ${limit} chars]`);
 }
 
 /** Return a shallow copy of `result` with long string fields truncated. */

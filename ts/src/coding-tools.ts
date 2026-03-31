@@ -9,6 +9,7 @@ import * as nodePath from "node:path";
 
 import { createTwoFilesPatch } from "diff";
 import { globSync } from "glob";
+import { truncateStr } from "./memory.js";
 
 // ---------------------------------------------------------------------------
 // read_file
@@ -122,7 +123,7 @@ export function editFile(args: Record<string, unknown>): unknown {
   }
 
   const newContent = replaceAll
-    ? content.split(oldText).join(newText)
+    ? content.replaceAll(oldText, newText)
     : content.replace(oldText, newText);
 
   // Generate unified diff
@@ -174,11 +175,7 @@ export function writeFile(args: Record<string, unknown>): unknown {
 // ---------------------------------------------------------------------------
 
 const MAX_OUTPUT_CHARS = 50000;
-
-function truncateOutput(text: string): string {
-  if (text.length <= MAX_OUTPUT_CHARS) return text;
-  return text.slice(0, MAX_OUTPUT_CHARS) + "\n[output truncated]";
-}
+const OUTPUT_TRUNCATION_MARKER = "\n[output truncated]";
 
 export function runBash(args: Record<string, unknown>): unknown {
   const command = args.command;
@@ -207,14 +204,15 @@ export function runBash(args: Record<string, unknown>): unknown {
     }
 
     return {
-      stdout: truncateOutput(result.stdout ?? ""),
-      stderr: truncateOutput(result.stderr ?? ""),
+      stdout: truncateStr(result.stdout ?? "", MAX_OUTPUT_CHARS, OUTPUT_TRUNCATION_MARKER),
+      stderr: truncateStr(result.stderr ?? "", MAX_OUTPUT_CHARS, OUTPUT_TRUNCATION_MARKER),
       returncode: result.status ?? -1,
     };
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     return {
       stdout: "",
-      stderr: `Command timed out after ${timeoutSec}s: ${command}`,
+      stderr: `Command failed: ${msg}`,
       returncode: -1,
     };
   }
@@ -280,6 +278,11 @@ function isRipgrepAvailable(): boolean {
   return _rgAvailable;
 }
 
+/** Reset the ripgrep availability cache (for testing). */
+export function _resetRgCache(): void {
+  _rgAvailable = null;
+}
+
 function grepWithRipgrep(
   pattern: string,
   root: string,
@@ -310,6 +313,7 @@ function grepWithRipgrep(
   const result = childProcess.spawnSync("rg", rgArgs, {
     encoding: "utf-8",
     timeout: 30000,
+    maxBuffer: 10 * 1024 * 1024, // 10MB — rg output can be large on broad patterns
   });
 
   // rg exit code 1 = no matches (not an error), 2 = actual error
