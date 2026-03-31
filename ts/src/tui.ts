@@ -470,7 +470,9 @@ export class InteractiveSession {
     }
 
     if (command === "/tasks") {
-      const taskResult = this.agent.tools.execute("list_tasks", {});
+      const taskResultOrPromise = this.agent.tools.execute("list_tasks", {});
+      // list_tasks is synchronous, so result is never a Promise
+      const taskResult = taskResultOrPromise as import("./types.js").ToolExecutionResult;
       const tasks = (taskResult.output as Array<Record<string, unknown>>) ?? [];
       if (tasks.length === 0) {
         this._write(chalk.dim("  没有活跃任务") + "\n");

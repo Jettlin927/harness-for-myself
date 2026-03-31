@@ -25,6 +25,7 @@ import { StopController, type StopState } from "./stop-controller.js";
 import { TrajectoryLogger } from "./logger.js";
 import type { BaseLLM } from "./llm.js";
 import { HookManager } from "./hooks.js";
+import { isDangerousCommand } from "./coding-tools.js";
 import { SubAgentSpawner } from "./subagent.js";
 
 /** Cast WorkingMemory to Record<string, unknown> for use with LLM/TurnRecord. */
@@ -347,7 +348,7 @@ export class HarnessAgent {
       }
 
       // tool_call
-      const toolResult = this._executeToolCall(
+      const toolResult = await this._executeToolCall(
         action.tool_name ?? "",
         action.arguments,
         dangerousSigs,
@@ -555,7 +556,15 @@ export class HarnessAgent {
       }
       return rule.decision;
     }
-    // 2. Fallback to trust_level
+    // 2. Dangerous command safety net — always ask for destructive commands
+    if (toolName === "bash") {
+      const cmd = (args.command as string) ?? "";
+      if (cmd && isDangerousCommand(cmd)) {
+        return "ask";
+      }
+    }
+
+    // 3. Fallback to trust_level
     return this._trustLevelFallback(toolName);
   }
 
@@ -591,7 +600,7 @@ export class HarnessAgent {
     return this._checkPermission(toolName, {}) === "ask";
   }
 
-  private _executeToolCall(
+  private async _executeToolCall(
     toolName: string,
     args: Record<string, unknown>,
     dangerousToolSignatures: string[],
@@ -600,7 +609,7 @@ export class HarnessAgent {
       description: string,
       args: Record<string, unknown>,
     ) => boolean,
-  ): ToolExecutionResult {
+  ): Promise<ToolExecutionResult> {
     // Plan mode: only read-only tools allowed
     if (this.config.mode === "plan") {
       if (!HarnessAgent._PLAN_MODE_TOOLS.has(toolName)) {
@@ -653,7 +662,7 @@ export class HarnessAgent {
     let result: ToolExecutionResult;
     do {
       attempt += 1;
-      result = this.tools.execute(toolName, args);
+      result = await this.tools.execute(toolName, args);
       result.attempts = attempt;
     } while (this.errorPolicy.shouldRetryTool(result, attempt));
 

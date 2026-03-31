@@ -362,10 +362,7 @@ export function makefileHasTarget(text: string, target: string): boolean {
  * Load project memory string (stub — returns null until project_memory.ts is implemented).
  */
 function loadProjectMemory(_root: string): string | null {
-  const memoryDir = path.join(_root, ".hau", "memory");
-  if (fs.existsSync(memoryDir) && fs.statSync(memoryDir).isDirectory()) {
-    return null;
-  }
+  // TODO: real implementation in project_memory.ts
   return null;
 }
 
@@ -374,10 +371,8 @@ function loadProjectMemory(_root: string): string | null {
  * Returns empty array if file does not exist or is invalid.
  */
 function loadHooksConfig(hauDir: string): HookDefinition[] {
-  const hooksPath = path.join(hauDir, "hooks.json");
-  if (!fs.existsSync(hooksPath)) return [];
   try {
-    const content = fs.readFileSync(hooksPath, "utf-8");
+    const content = fs.readFileSync(path.join(hauDir, "hooks.json"), "utf-8");
     const parsed = JSON.parse(content);
     if (!Array.isArray(parsed)) return [];
     return parsed as HookDefinition[];

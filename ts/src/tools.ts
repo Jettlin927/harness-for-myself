@@ -21,6 +21,7 @@ import {
   globFiles,
   grepSearch,
   listDirectory,
+  webFetch,
 } from "./coding-tools.js";
 import type { TaskStatus } from "./types.js";
 import { TaskManager } from "./tasks.js";
@@ -105,7 +106,7 @@ export class ToolDispatcher {
   execute(
     toolName: string,
     args: Record<string, unknown>,
-  ): ToolExecutionResult {
+  ): ToolExecutionResult | Promise<ToolExecutionResult> {
     const tool = this._tools.get(toolName);
     if (!tool) {
       return toolError(`Unknown tool: ${toolName}`);
@@ -113,6 +114,17 @@ export class ToolDispatcher {
 
     try {
       const output = tool(args);
+      // Support async tools (e.g. web_fetch)
+      if (output instanceof Promise) {
+        return output
+          .then((resolved) => toolSuccess(resolved))
+          .catch((err) => {
+            if (err instanceof RetryableToolError) {
+              return toolError(err.message, { retryable: true });
+            }
+            return toolError(err instanceof Error ? err.message : String(err));
+          });
+      }
       return toolSuccess(output);
     } catch (err) {
       if (err instanceof RetryableToolError) {
@@ -320,6 +332,19 @@ export function registerCodingTools(
       },
     },
     required: ["path"],
+  });
+
+  dispatcher.registerTool("web_fetch", webFetch as ToolFn, {
+    type: "object",
+    description: "Fetch content from an HTTP/HTTPS URL",
+    properties: {
+      url: { type: "string", description: "URL to fetch (http:// or https://)" },
+      max_size: {
+        type: "integer",
+        description: "Max response size in characters (default 100000)",
+      },
+    },
+    required: ["url"],
   });
 
   if (options?.allowBash !== false) {

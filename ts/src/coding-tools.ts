@@ -171,8 +171,53 @@ export function writeFile(args: Record<string, unknown>): unknown {
 }
 
 // ---------------------------------------------------------------------------
+// web_fetch
+// ---------------------------------------------------------------------------
+
+const MAX_FETCH_SIZE = 100000; // 100KB
+
+export async function webFetch(args: Record<string, unknown>): Promise<unknown> {
+  const url = args.url;
+  if (typeof url !== "string" || !url.trim()) {
+    throw new Error("web_fetch requires a non-empty string 'url'.");
+  }
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    throw new Error("web_fetch requires an http:// or https:// URL.");
+  }
+
+  const maxSize = (args.max_size as number) ?? MAX_FETCH_SIZE;
+
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(30000),
+    headers: { "User-Agent": "HAU/0.1" },
+  });
+
+  const text = await response.text();
+  const truncated = text.length > maxSize;
+
+  return {
+    status: response.status,
+    content: truncated ? text.slice(0, maxSize) + "\n[truncated]" : text,
+    content_type: response.headers.get("content-type") ?? "",
+    truncated,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // run_bash
 // ---------------------------------------------------------------------------
+
+export const DANGEROUS_COMMAND_PATTERNS = [
+  /\bgit\s+push\s+.*--force\b/,
+  /\bgit\s+reset\s+--hard\b/,
+  /\bgit\s+clean\s+-[a-z]*f/,
+  /\bgit\s+checkout\s+--\s/,
+  /\brm\s+-[a-z]*r[a-z]*f\b/,
+];
+
+export function isDangerousCommand(command: string): boolean {
+  return DANGEROUS_COMMAND_PATTERNS.some((p) => p.test(command));
+}
 
 const MAX_OUTPUT_CHARS = 50000;
 const OUTPUT_TRUNCATION_MARKER = "\n[output truncated]";

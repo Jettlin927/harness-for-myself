@@ -256,8 +256,28 @@ describe("PermissionRules", () => {
     const agent = makeAgentWithRules("ask", [
       { tool: "bash", decision: "allow" },
     ]);
-    // bash would normally need approval in ask mode, but rule says allow
     expect(agent._needsApproval("bash")).toBe(false);
+  });
+
+  it("dangerous git commands force ask even in yolo mode", () => {
+    const agent = makeAgentWithRules("yolo", []);
+    expect(agent._checkPermission("bash", { command: "git push --force" })).toBe("ask");
+    expect(agent._checkPermission("bash", { command: "git reset --hard" })).toBe("ask");
+    expect(agent._checkPermission("bash", { command: "rm -rf /" })).toBe("ask");
+  });
+
+  it("safe git commands pass through in yolo mode", () => {
+    const agent = makeAgentWithRules("yolo", []);
+    expect(agent._checkPermission("bash", { command: "git status" })).toBe("allow");
+    expect(agent._checkPermission("bash", { command: "git commit -m test" })).toBe("allow");
+  });
+
+  it("explicit allow rule overrides dangerous command check", () => {
+    const agent = makeAgentWithRules("yolo", [
+      { tool: "bash", pattern: "git push", decision: "allow" },
+    ]);
+    // Rule matches first, before dangerous check
+    expect(agent._checkPermission("bash", { command: "git push --force" })).toBe("allow");
   });
 });
 

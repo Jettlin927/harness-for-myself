@@ -10,6 +10,8 @@ import {
   readFile,
   runBash,
   writeFile,
+  webFetch,
+  isDangerousCommand,
 } from "../src/coding-tools.js";
 
 // ===========================================================================
@@ -716,5 +718,52 @@ describe("listDirectory", () => {
     const f = path.join(tmpDir, "afile.txt");
     fs.writeFileSync(f, "x", "utf-8");
     expect(() => listDirectory({ path: f })).toThrow("not a directory");
+  });
+});
+
+// ===========================================================================
+// web_fetch
+// ===========================================================================
+
+describe("webFetch", () => {
+  it("rejects empty url", async () => {
+    await expect(webFetch({ url: "" })).rejects.toThrow("non-empty string");
+  });
+
+  it("rejects non-http url", async () => {
+    await expect(webFetch({ url: "ftp://example.com" })).rejects.toThrow("http");
+  });
+
+  it("rejects non-string url", async () => {
+    await expect(webFetch({ url: 123 as unknown })).rejects.toThrow("non-empty string");
+  });
+});
+
+// ===========================================================================
+// isDangerousCommand
+// ===========================================================================
+
+describe("isDangerousCommand", () => {
+  it("detects git push --force", () => {
+    expect(isDangerousCommand("git push --force")).toBe(true);
+    expect(isDangerousCommand("git push origin main --force")).toBe(true);
+  });
+
+  it("detects git reset --hard", () => {
+    expect(isDangerousCommand("git reset --hard")).toBe(true);
+    expect(isDangerousCommand("git reset --hard HEAD~1")).toBe(true);
+  });
+
+  it("detects rm -rf", () => {
+    expect(isDangerousCommand("rm -rf /")).toBe(true);
+    expect(isDangerousCommand("rm -rf .")).toBe(true);
+  });
+
+  it("allows safe commands", () => {
+    expect(isDangerousCommand("git status")).toBe(false);
+    expect(isDangerousCommand("git push")).toBe(false);
+    expect(isDangerousCommand("git commit -m test")).toBe(false);
+    expect(isDangerousCommand("npm test")).toBe(false);
+    expect(isDangerousCommand("rm file.txt")).toBe(false);
   });
 });
