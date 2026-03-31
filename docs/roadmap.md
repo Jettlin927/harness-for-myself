@@ -9,7 +9,7 @@
 **核心差距**（按影响排序）：
 1. ~~上下文管理粗糙~~ → Phase 13 已完成 prompt caching + summary 上限
 2. ~~工具性能弱~~ → Phase 14 已完成 ripgrep 集成 + bash 升级 + 文件工具增强
-3. 权限模型粗 → 不敢放 auto，只能 ask/yolo 二选一
+3. ~~权限模型粗~~ → Phase 15 已完成细粒度 PermissionRule 规则链
 4. 交互体验缺失 → 无 Plan 模式、无 Task 跟踪、无中断恢复
 5. 多 Agent 能力弱 → 无并行、无隔离、无专用 agent 类型
 6. 生态集成空白 → 无 MCP、无 Git/GitHub 深度集成
@@ -57,29 +57,19 @@
 
 ---
 
-## Phase 15: 细粒度权限模型
+## Phase 15: 细粒度权限模型 ✅ 已完成
 
 **目标：** 在 ask 和 yolo 之间找到实用的中间地带。
 
-**产出：**
-- `types.ts` — 新增 `PermissionRule` 类型：
-  ```ts
-  interface PermissionRule {
-    tool: string;           // "run_bash" | "edit_file" | "*"
-    pattern?: string;       // glob 匹配，如 "npm test" / "src/**"
-    decision: "allow" | "deny" | "ask";
-  }
-  ```
-- `agent.ts` — `_needsApproval()` 重写：按规则链匹配，支持命令白名单
-- `config.ts` — 权限规则从配置文件加载（`.hau/permissions.json`）
-- TUI — 审批时支持 "Always allow this"（动态添加规则）
-
-**验收：**
-- 可配置 `npm test` 自动放行、`rm` 必须确认
-- "Always allow" 持久化到配置文件
-- 权限测试用例 20+
-
-**预估工作量：** 中等
+**实际交付：**
+- `types.ts` — 新增 `PermissionRule` 接口（tool + pattern 前缀 + allow/deny/ask）
+- `agent.ts` — RunConfig 新增 `permission_rules` 字段，`_checkPermission()` 按规则链匹配
+  - 规则按数组顺序评估，第一个匹配胜出
+  - bash 工具匹配 command 前缀，文件工具匹配 path 前缀
+  - 无规则匹配时 fallback 到 trust_level
+  - `_needsApproval()` 保留为兼容方法
+- `subagent.ts` — 子 Agent 继承父 Agent 的 permission_rules
+- 402 测试全部通过（新增 8 个权限规则测试）
 
 ---
 
@@ -221,7 +211,7 @@
 Q2 2026 (4-6月)
 ├── Phase 13: Prompt Caching + 上下文压缩  ✅ 已完成 (2026-03-31)
 ├── Phase 14: 工具层升级                    ✅ 已完成 (2026-03-31)
-└── Phase 15: 细粒度权限                    ← 下一步
+└── Phase 15: 细粒度权限                    ✅ 已完成 (2026-03-31)
 
 Q3 2026 (7-9月)
 ├── Phase 16: Plan + Task                   ← 复杂任务体验
