@@ -176,6 +176,10 @@ export class SubAgentSpawner {
       maxSteps = arguments_.max_steps;
     }
 
+    // Derive mode from agent type: explore/plan → read-only, general-purpose → execute
+    const agentType = definition?.type ?? ((arguments_.type as string) || "general-purpose");
+    const childMode = agentType === "explore" || agentType === "plan" ? "plan" : "execute";
+
     return {
       max_steps: maxSteps,
       log_dir: parent.log_dir,
@@ -194,7 +198,7 @@ export class SubAgentSpawner {
       trust_level: effectiveTrust,
       permission_rules: parent.permission_rules,
       hooks: parent.hooks,
-      mode: parent.mode,
+      mode: childMode,
       agent_depth: parent.agent_depth + 1,
     };
   }

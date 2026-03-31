@@ -7,13 +7,14 @@
 
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, basename } from "node:path";
-import type { TrustLevel } from "./types.js";
+import type { AgentType, TrustLevel } from "./types.js";
 
 // --- Interfaces ---
 
 export interface AgentDefinition {
   name: string;
   description: string;
+  type: AgentType;
   max_steps: number | null;
   trust_level: TrustLevel | null;
   tools: string[] | null;
@@ -110,6 +111,7 @@ export function parseDefinitionFile(
 // --- Validation ---
 
 const VALID_TRUST_LEVELS = new Set<string>(["ask", "auto-edit", "yolo"]);
+const VALID_AGENT_TYPES = new Set<string>(["general-purpose", "explore", "plan"]);
 
 function validateAgent(
   meta: Record<string, string | number | string[]>,
@@ -163,9 +165,23 @@ function validateAgent(
     tools = rawTools;
   }
 
+  let agentType: AgentType = "general-purpose";
+  const rawType = meta["type"];
+  if (rawType !== undefined) {
+    const typeStr = String(rawType);
+    if (!VALID_AGENT_TYPES.has(typeStr)) {
+      console.warn(
+        `definitions: skipping ${filepath}: invalid type '${typeStr}'`,
+      );
+      return null;
+    }
+    agentType = typeStr as AgentType;
+  }
+
   return {
     name,
     description,
+    type: agentType,
     max_steps: maxSteps,
     trust_level: trustLevel,
     tools,

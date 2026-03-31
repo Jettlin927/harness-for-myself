@@ -74,6 +74,76 @@ describe("TestTrustResolution", () => {
   });
 });
 
+describe("AgentType → mode mapping", () => {
+  it("explore type definition results in plan mode config", () => {
+    const parentConfig = makeConfig({ trust_level: "yolo", mode: "execute" });
+    const childLlm = new ScriptedLLM([]);
+
+    const exploreDef: AgentDefinition = {
+      name: "explorer",
+      description: "Explore agent",
+      type: "explore",
+      max_steps: null,
+      trust_level: null,
+      tools: null,
+      system_instructions: "",
+    };
+
+    // Access _buildChildConfig via SubAgentSpawner
+    const spawner = new SubAgentSpawner(parentConfig, childLlm, [exploreDef]);
+    // Use the private method via bracket notation for testing
+    const childConfig = (spawner as any)._buildChildConfig(exploreDef, { goal: "test" });
+    expect(childConfig.mode).toBe("plan");
+  });
+
+  it("plan type definition results in plan mode config", () => {
+    const parentConfig = makeConfig({ trust_level: "yolo", mode: "execute" });
+    const childLlm = new ScriptedLLM([]);
+
+    const planDef: AgentDefinition = {
+      name: "planner",
+      description: "Plan agent",
+      type: "plan",
+      max_steps: null,
+      trust_level: null,
+      tools: null,
+      system_instructions: "",
+    };
+
+    const spawner = new SubAgentSpawner(parentConfig, childLlm, [planDef]);
+    const childConfig = (spawner as any)._buildChildConfig(planDef, { goal: "test" });
+    expect(childConfig.mode).toBe("plan");
+  });
+
+  it("general-purpose type results in execute mode config", () => {
+    const parentConfig = makeConfig({ trust_level: "yolo", mode: "execute" });
+    const childLlm = new ScriptedLLM([]);
+
+    const gpDef: AgentDefinition = {
+      name: "helper",
+      description: "Helper",
+      type: "general-purpose",
+      max_steps: null,
+      trust_level: null,
+      tools: null,
+      system_instructions: "",
+    };
+
+    const spawner = new SubAgentSpawner(parentConfig, childLlm, [gpDef]);
+    const childConfig = (spawner as any)._buildChildConfig(gpDef, { goal: "test" });
+    expect(childConfig.mode).toBe("execute");
+  });
+
+  it("type from args overrides default when no definition", () => {
+    const parentConfig = makeConfig({ trust_level: "yolo", mode: "execute" });
+    const childLlm = new ScriptedLLM([]);
+    const spawner = new SubAgentSpawner(parentConfig, childLlm, []);
+
+    const childConfig = (spawner as any)._buildChildConfig(undefined, { goal: "test", type: "explore" });
+    expect(childConfig.mode).toBe("plan");
+  });
+});
+
 describe("TestSpawnChildCompletes", () => {
   let tmpDir: string;
 
@@ -105,6 +175,7 @@ describe("TestSpawnChildCompletes", () => {
     const agentDef: AgentDefinition = {
       name: "helper",
       description: "A helper agent",
+      type: "general-purpose",
       max_steps: null,
       trust_level: null,
       tools: null,
@@ -240,6 +311,7 @@ describe("TestToolWhitelist", () => {
     const agentDef: AgentDefinition = {
       name: "restricted",
       description: "Only echo allowed",
+      type: "general-purpose",
       max_steps: null,
       trust_level: null,
       tools: ["echo"],

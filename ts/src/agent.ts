@@ -172,6 +172,12 @@ export class HarnessAgent {
               type: "integer",
               description: "Optional max steps override",
             },
+            type: {
+              type: "string",
+              enum: ["general-purpose", "explore", "plan"],
+              description:
+                "Agent type: general-purpose (full tools), explore (read-only), plan (read-only)",
+            },
           },
           required: ["goal"],
         },
@@ -637,9 +643,10 @@ export class HarnessAgent {
       );
     }
 
-    // PreToolUse hooks
-    const hookEnv = { HAU_TOOL_NAME: toolName, HAU_TOOL_ARGS: JSON.stringify(args) };
-    this.hookManager.runHooks("PreToolUse", toolName, hookEnv);
+    this.hookManager.runHooks("PreToolUse", toolName, {
+      HAU_TOOL_NAME: toolName,
+      HAU_TOOL_ARGS: JSON.stringify(args),
+    });
 
     // Retry loop
     let attempt = 0;
@@ -650,9 +657,9 @@ export class HarnessAgent {
       result.attempts = attempt;
     } while (this.errorPolicy.shouldRetryTool(result, attempt));
 
-    // PostToolUse hooks
     this.hookManager.runHooks("PostToolUse", toolName, {
-      ...hookEnv,
+      HAU_TOOL_NAME: toolName,
+      HAU_TOOL_ARGS: JSON.stringify(args),
       HAU_TOOL_OK: String(result.ok),
       HAU_TOOL_OUTPUT: String(result.output ?? ""),
     });
