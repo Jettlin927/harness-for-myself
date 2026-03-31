@@ -5,14 +5,13 @@
 
 import type { Task, TaskStatus } from "./types.js";
 
-let _nextId = 1;
-
-function generateId(): string {
-  return `task_${_nextId++}`;
-}
-
 export class TaskManager {
+  private static readonly _VALID_STATUSES = new Set<TaskStatus>([
+    "pending", "in_progress", "completed", "failed",
+  ]);
+
   private _tasks: Map<string, Task> = new Map();
+  private _nextId = 1;
 
   create(description: string): Task {
     if (!description.trim()) {
@@ -20,7 +19,7 @@ export class TaskManager {
     }
     const now = new Date().toISOString();
     const task: Task = {
-      id: generateId(),
+      id: `task_${this._nextId++}`,
       description,
       status: "pending",
       created_at: now,
@@ -35,9 +34,8 @@ export class TaskManager {
     if (!task) {
       throw new Error(`Task not found: ${id}`);
     }
-    const validStatuses: TaskStatus[] = ["pending", "in_progress", "completed", "failed"];
-    if (!validStatuses.includes(status)) {
-      throw new Error(`Invalid status: ${status}. Must be one of: ${validStatuses.join(", ")}`);
+    if (!TaskManager._VALID_STATUSES.has(status)) {
+      throw new Error(`Invalid status: ${status}. Must be one of: ${[...TaskManager._VALID_STATUSES].join(", ")}`);
     }
     task.status = status;
     task.updated_at = new Date().toISOString();
@@ -56,9 +54,4 @@ export class TaskManager {
   clear(): void {
     this._tasks.clear();
   }
-}
-
-/** Reset the ID counter (for testing). */
-export function _resetTaskIdCounter(): void {
-  _nextId = 1;
 }

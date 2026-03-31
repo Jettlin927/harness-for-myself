@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { TaskManager, _resetTaskIdCounter } from "../src/tasks.js";
+import { TaskManager } from "../src/tasks.js";
 
 describe("TaskManager", () => {
   let tm: TaskManager;
 
   beforeEach(() => {
-    _resetTaskIdCounter();
     tm = new TaskManager();
   });
 

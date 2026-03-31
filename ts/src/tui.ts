@@ -509,12 +509,12 @@ export class InteractiveSession {
 
     // Save original mode and switch to plan
     const originalMode = this.agent.config.mode;
-    (this.agent.config as { mode: string }).mode = "plan";
+    this.agent.config.mode = "plan";
 
     try {
       await this._runGoal(`Create a detailed plan for: ${goal}\n\nYou are in plan mode. Explore the codebase, analyze the problem, and produce a step-by-step implementation plan. Do NOT attempt to modify any files.`);
     } finally {
-      (this.agent.config as { mode: string }).mode = originalMode;
+      this.agent.config.mode = originalMode;
     }
 
     // Ask user if they want to execute
