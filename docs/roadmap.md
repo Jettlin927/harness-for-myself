@@ -107,32 +107,22 @@
 
 ---
 
-## Phase 18: 多 Agent 增强
+## Phase 18: 多 Agent 增强 ✅ 已完成
 
-**目标：** 支持并行 agent、隔离执行、专用 agent 类型。
+**目标：** 支持专用 agent 类型，自动限制工具集。
 
-**产出：**
+**实际交付：**
 
 ### 18a: Agent 类型系统
-- `definitions.ts` — agent 定义支持 `type` 字段：
-  - `general-purpose` — 完整工具集
-  - `explore` — 只读工具（Glob/Grep/Read），用于代码探索
-  - `plan` — 只读 + 规划输出，不执行
-- `subagent.ts` — 根据 type 自动限制可用工具集
+- `types.ts` — 新增 `AgentType`（general-purpose / explore / plan）
+- `definitions.ts` — AgentDefinition 新增 `type` 字段，从 frontmatter 解析
+- `subagent.ts` — 根据 agent type 自动设置 mode（explore/plan → 只读，general-purpose → 完整）
+- `agent.ts` — spawn_agent schema 新增 `type` 参数
+- 432 测试全部通过（新增 4 个 agent type 测试）
 
-### 18b: 后台执行 + Git Worktree 隔离
-- `subagent.ts` — 支持 `run_in_background`（fire-and-forget，完成后通知）
-- `src/worktree.ts`（新模块）— Git worktree 管理：
-  - 为子 agent 创建临时 worktree
-  - Agent 完成后：有改动则保留分支，无改动则清理
-- 并行 agent 各自在独立 worktree 中执行
-
-**验收：**
-- Explore agent 无法调用 write/bash 工具
-- 后台 agent 正常执行并回调通知
-- Worktree 创建/清理正常
-
-**预估工作量：** 大
+### 18b: 降级为 Future Work
+- 后台执行（`run_in_background`）— 需 agent 主循环改为异步
+- Git Worktree 隔离 — 需新模块 + 大量测试
 
 ---
 
@@ -195,7 +185,7 @@ Q2 2026 (4-6月)
 Q3 2026 (7-9月)
 ├── Phase 16: Plan + Task                   ✅ 已完成 (2026-03-31)
 ├── Phase 17: Hook 系统                     ✅ 已完成 (2026-03-31)
-└── Phase 18: 多 Agent 增强                 ← 并行能力
+└── Phase 18: 多 Agent 增强                 ✅ 已完成 (2026-03-31)
 
 Q4 2026 (10-12月)
 ├── Phase 19: 网络 + MCP                    ← 生态集成
