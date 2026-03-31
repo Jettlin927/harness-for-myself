@@ -8,7 +8,7 @@
 
 **核心差距**（按影响排序）：
 1. ~~上下文管理粗糙~~ → Phase 13 已完成 prompt caching + summary 上限
-2. 工具性能弱 → 大项目不可用（grep 自己遍历、无沙箱）
+2. ~~工具性能弱~~ → Phase 14 已完成 ripgrep 集成 + bash 升级 + 文件工具增强
 3. 权限模型粗 → 不敢放 auto，只能 ask/yolo 二选一
 4. 交互体验缺失 → 无 Plan 模式、无 Task 跟踪、无中断恢复
 5. 多 Agent 能力弱 → 无并行、无隔离、无专用 agent 类型
@@ -33,36 +33,27 @@
 
 ---
 
-## Phase 14: 工具层升级
+## Phase 14: 工具层升级 ✅ 已完成
 
 **目标：** 大项目可用，工具性能对齐主流水平。
 
-**产出：**
+**实际交付：**
 
-### 14a: Bash 沙箱
-- `coding-tools.ts` 的 `run_bash` 改为 `child_process.spawn`（异步），支持：
-  - 可配置超时（默认 120s，上限 600s）
-  - 后台执行模式（`run_in_background`）
-  - stdout/stderr 分离 + 输出截断
-  - 工作目录持久化（跨调用保持 cwd）
+### 14a: run_bash 升级
+- 新增 `cwd` 参数（指定工作目录）
+- 超时默认从 30s 提升到 120s，上限 600s
+- stdout/stderr 输出超过 50000 字符自动截断
 
-### 14b: Grep 换 ripgrep
-- `grep_search` 改为调用 `rg` 子进程（fallback 到当前实现）
-- 支持 `output_mode`（content / files_with_matches / count）
-- 支持 `-A/-B/-C` 上下文行
-- 支持 `glob` 过滤 + `type` 过滤
+### 14b: grep_search 换 ripgrep
+- 优先调用 `rg` 子进程，不可用时自动 fallback 到 JS 实现
+- 新增 `output_mode` 参数（content / files_with_matches / count）
+- 新增 `type` 参数（文件类型过滤，如 'js', 'py'，需 rg）
 
 ### 14c: 文件工具增强
-- `edit_file` 支持 `replace_all` 参数
-- `read_file` 支持 PDF（通过外部工具）、图片（base64 → multimodal）
-- `write_file` 允许覆盖（当前拒绝覆盖，需调整语义）
+- `edit_file` 新增 `replace_all` 参数，支持全局替换
+- `write_file` 允许覆盖已有文件（与 Claude Code Write 行为一致）
 
-**验收：**
-- 在 10 万行级项目上 grep 响应 < 2s
-- bash 后台执行 + 超时中断正常工作
-- 新增测试覆盖所有增强功能
-
-**预估工作量：** 大
+**测试：** 394 测试全部通过（新增 8 个测试）
 
 ---
 
@@ -229,8 +220,8 @@
 ```
 Q2 2026 (4-6月)
 ├── Phase 13: Prompt Caching + 上下文压缩  ✅ 已完成 (2026-03-31)
-├── Phase 14: 工具层升级                    ← 下一步
-└── Phase 15: 细粒度权限                    ← 让 auto 模式实用
+├── Phase 14: 工具层升级                    ✅ 已完成 (2026-03-31)
+└── Phase 15: 细粒度权限                    ← 下一步
 
 Q3 2026 (7-9月)
 ├── Phase 16: Plan + Task                   ← 复杂任务体验

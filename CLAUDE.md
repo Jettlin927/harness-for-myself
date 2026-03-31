@@ -11,9 +11,9 @@
 
 ## 当前状态
 
-**TypeScript 重写已完成，Phase 13（Prompt Caching）已完成。** 22 个模块、386 个测试全部通过。
+**TypeScript 重写已完成，Phase 13-14 已完成。** 22 个模块、394 个测试全部通过。
 
-功能清单：编程工具（7 个）、Anthropic 原生 tool_use、**Prompt Caching（三段缓存）**、流式输出、三级权限、项目上下文注入、子 Agent 生成、Skill 系统、跨会话记忆、网络重试、原子快照、评估框架。
+功能清单：编程工具（7 个，含 ripgrep 集成）、Anthropic 原生 tool_use、**Prompt Caching（三段缓存）**、流式输出、三级权限、项目上下文注入、子 Agent 生成、Skill 系统、跨会话记忆、网络重试、原子快照、评估框架。
 
 ## 项目结构
 
