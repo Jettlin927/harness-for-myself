@@ -5,6 +5,7 @@
  */
 
 import type {
+  AgentMode,
   LLMAction,
   PermissionRule,
   RunResult,
@@ -50,6 +51,7 @@ export interface RunConfig {
   max_tokens_budget: number | null;
   trust_level: TrustLevel;
   permission_rules: PermissionRule[];
+  mode: AgentMode;
   agent_depth: number;
 }
 
@@ -70,6 +72,7 @@ const DEFAULT_CONFIG: RunConfig = {
   max_tokens_budget: null,
   trust_level: "ask",
   permission_rules: [],
+  mode: "execute",
   agent_depth: 0,
 };
 
@@ -104,6 +107,15 @@ export class HarnessAgent {
   readonly errorPolicy: ErrorPolicy;
   readonly snapshotStore: SnapshotStore;
   readonly stopController: StopController;
+
+  private static readonly _PLAN_MODE_TOOLS = new Set([
+    "read_file",
+    "glob_files",
+    "grep_search",
+    "list_directory",
+    "echo",
+    "list_tasks",
+  ]);
 
   private static readonly _APPROVAL_REQUIRED_TOOLS = new Set([
     "bash",
@@ -577,6 +589,15 @@ export class HarnessAgent {
       args: Record<string, unknown>,
     ) => boolean,
   ): ToolExecutionResult {
+    // Plan mode: only read-only tools allowed
+    if (this.config.mode === "plan") {
+      if (!HarnessAgent._PLAN_MODE_TOOLS.has(toolName)) {
+        return toolError(
+          `Tool '${toolName}' is not available in plan mode (read-only)`,
+        );
+      }
+    }
+
     // Permission check
     const decision = this._checkPermission(toolName, args);
     if (decision === "deny") {

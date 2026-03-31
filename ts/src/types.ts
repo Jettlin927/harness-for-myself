@@ -7,6 +7,17 @@
 
 export type ActionType = "tool_call" | "final_response";
 export type TrustLevel = "ask" | "auto-edit" | "yolo";
+export type AgentMode = "execute" | "plan";
+export type TaskStatus = "pending" | "in_progress" | "completed" | "failed";
+
+/** A trackable task within an agent run. */
+export interface Task {
+  id: string;
+  description: string;
+  status: TaskStatus;
+  created_at: string;
+  updated_at: string;
+}
 
 // --- Error Classes ---
 

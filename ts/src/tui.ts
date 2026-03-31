@@ -243,6 +243,17 @@ export class InteractiveSession {
         if (goal.startsWith("/")) {
           if (this._handleCommand(goal)) continue;
 
+          // /plan command (async — handled here)
+          if (goal.toLowerCase().startsWith("/plan ")) {
+            const planGoal = goal.slice(6).trim();
+            if (planGoal) {
+              await this._runPlan(planGoal);
+            } else {
+              this._write(chalk.red("  用法: /plan <目标>") + "\n");
+            }
+            continue;
+          }
+
           // Skill expansion
           if (this._skills.size > 0) {
             const [expanded, err] = expandSkill(goal, this._skills);
@@ -338,7 +349,7 @@ export class InteractiveSession {
     }
 
     this._write(
-      `\n  ${chalk.dim("\u547D\u4EE4:")} /help /skills /agents /status /trust /clear\n`,
+      `\n  ${chalk.dim("\u547D\u4EE4:")} /help /plan /tasks /skills /agents /status /trust /clear\n`,
     );
 
     if (this._skills.size > 0) {
@@ -390,6 +401,8 @@ export class InteractiveSession {
         chalk.bold("  \u53EF\u7528\u547D\u4EE4") +
           "\n" +
           "    /help        \u663E\u793A\u6B64\u5E2E\u52A9\u4FE1\u606F\n" +
+          "    /plan GOAL   \u5148\u89C4\u5212\u518D\u6267\u884C\uFF08\u53EA\u8BFB\u63A2\u7D22 \u2192 \u786E\u8BA4 \u2192 \u6267\u884C\uFF09\n" +
+          "    /tasks       \u663E\u793A\u5F53\u524D\u4EFB\u52A1\u5217\u8868\n" +
           "    /skills      \u5217\u51FA\u6240\u6709\u5DF2\u52A0\u8F7D\u7684 skill\n" +
           "    /agents      \u5217\u51FA\u6240\u6709\u5DF2\u52A0\u8F7D\u7684 agent \u5B9A\u4E49\n" +
           "    /status      \u663E\u793A\u5F53\u524D\u4F1A\u8BDD\u72B6\u6001\n" +
@@ -456,6 +469,30 @@ export class InteractiveSession {
       return true;
     }
 
+    if (command === "/tasks") {
+      const taskResult = this.agent.tools.execute("list_tasks", {});
+      const tasks = (taskResult.output as Array<Record<string, unknown>>) ?? [];
+      if (tasks.length === 0) {
+        this._write(chalk.dim("  没有活跃任务") + "\n");
+      } else {
+        this._write(chalk.cyan.bold("  Tasks") + "\n");
+        for (const task of tasks) {
+          const statusIcon =
+            task.status === "completed"
+              ? chalk.green(ICON_OK)
+              : task.status === "failed"
+                ? chalk.red(ICON_ERR)
+                : task.status === "in_progress"
+                  ? chalk.yellow("●")
+                  : chalk.dim("○");
+          this._write(
+            `    ${statusIcon} ${chalk.dim(task.id as string)} ${task.description}  ${chalk.dim(`[${task.status}]`)}\n`,
+          );
+        }
+      }
+      return true;
+    }
+
     if (command === "/clear") {
       this._session = this._sessionMgr.loadOrCreate();
       this._sessionMgr.save(this._session);
@@ -465,6 +502,34 @@ export class InteractiveSession {
     }
 
     return false;
+  }
+
+  private async _runPlan(goal: string): Promise<void> {
+    this._write(chalk.cyan.bold("\n  📋 Plan 模式") + chalk.dim(" — agent 只能读取和搜索，不能修改文件\n\n"));
+
+    // Save original mode and switch to plan
+    const originalMode = this.agent.config.mode;
+    (this.agent.config as { mode: string }).mode = "plan";
+
+    try {
+      await this._runGoal(`Create a detailed plan for: ${goal}\n\nYou are in plan mode. Explore the codebase, analyze the problem, and produce a step-by-step implementation plan. Do NOT attempt to modify any files.`);
+    } finally {
+      (this.agent.config as { mode: string }).mode = originalMode;
+    }
+
+    // Ask user if they want to execute
+    this._write(chalk.yellow("\n  Execute this plan? ") + chalk.dim("(y/n) "));
+    const answer = await new Promise<string>((resolve) => {
+      if (!this._rl) { resolve("n"); return; }
+      this._rl.question("", (ans) => resolve(ans.trim().toLowerCase()));
+    });
+
+    if (answer === "y" || answer === "yes") {
+      this._write(chalk.green(`  ${ICON_OK} 开始执行...\n`));
+      await this._runGoal(goal);
+    } else {
+      this._write(chalk.dim("  已取消\n"));
+    }
   }
 
   private _onToken(token: string): void {

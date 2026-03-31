@@ -193,6 +193,7 @@ export class SubAgentSpawner {
       max_tokens_budget: parent.max_tokens_budget,
       trust_level: effectiveTrust,
       permission_rules: parent.permission_rules,
+      mode: parent.mode,
       agent_depth: parent.agent_depth + 1,
     };
   }

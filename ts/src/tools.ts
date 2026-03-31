@@ -22,6 +22,8 @@ import {
   grepSearch,
   listDirectory,
 } from "./coding-tools.js";
+import type { TaskStatus } from "./types.js";
+import { TaskManager } from "./tasks.js";
 
 export { RetryableToolError };
 
@@ -341,4 +343,52 @@ export function registerCodingTools(
       required: ["command"],
     });
   }
+
+  // --- Task management tools ---
+
+  const taskMgr = new TaskManager();
+
+  dispatcher.registerTool(
+    "create_task",
+    (args) => taskMgr.create((args.description as string) ?? ""),
+    {
+      type: "object",
+      description: "Create a new task to track progress",
+      properties: {
+        description: {
+          type: "string",
+          description: "What needs to be done",
+        },
+      },
+      required: ["description"],
+    },
+  );
+
+  dispatcher.registerTool(
+    "update_task",
+    (args) =>
+      taskMgr.update(
+        (args.id as string) ?? "",
+        ((args.status as string) ?? "") as TaskStatus,
+      ),
+    {
+      type: "object",
+      description: "Update a task's status",
+      properties: {
+        id: { type: "string", description: "Task ID" },
+        status: {
+          type: "string",
+          enum: ["pending", "in_progress", "completed", "failed"],
+          description: "New status",
+        },
+      },
+      required: ["id", "status"],
+    },
+  );
+
+  dispatcher.registerTool("list_tasks", () => taskMgr.list(), {
+    type: "object",
+    description: "List all tasks and their statuses",
+    properties: {},
+  });
 }

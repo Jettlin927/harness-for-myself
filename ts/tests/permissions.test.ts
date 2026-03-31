@@ -262,6 +262,90 @@ describe("PermissionRules", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Plan mode restrictions
+// ---------------------------------------------------------------------------
+
+describe("PlanMode", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "plan-mode-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("plan mode allows read_file", async () => {
+    const filePath = path.join(tmpDir, "test.txt");
+    fs.writeFileSync(filePath, "hello", "utf-8");
+
+    const llm = new ScriptedLLM([
+      { type: "tool_call", tool_name: "read_file", arguments: { path: filePath } },
+      { type: "final_response", content: "done" },
+    ]);
+    const agent = new HarnessAgent(llm, {
+      log_dir: tmpDir,
+      trust_level: "yolo",
+      mode: "plan",
+      project_root: tmpDir,
+    });
+
+    const result = await agent.run("read something");
+    expect(result.turns[0].tool_result!.ok).toBe(true);
+  });
+
+  it("plan mode blocks write_file", async () => {
+    const llm = new ScriptedLLM([
+      { type: "tool_call", tool_name: "write_file", arguments: { path: path.join(tmpDir, "new.txt"), content: "x" } },
+      { type: "final_response", content: "done" },
+    ]);
+    const agent = new HarnessAgent(llm, {
+      log_dir: tmpDir,
+      trust_level: "yolo",
+      mode: "plan",
+      project_root: tmpDir,
+    });
+
+    const result = await agent.run("write something");
+    expect(result.turns[0].tool_result!.ok).toBe(false);
+    expect(result.turns[0].tool_result!.error).toContain("plan mode");
+  });
+
+  it("plan mode blocks bash", async () => {
+    const llm = new ScriptedLLM([
+      { type: "tool_call", tool_name: "bash", arguments: { command: "echo hi" } },
+      { type: "final_response", content: "done" },
+    ]);
+    const agent = new HarnessAgent(llm, {
+      log_dir: tmpDir,
+      trust_level: "yolo",
+      mode: "plan",
+      project_root: tmpDir,
+    });
+
+    const result = await agent.run("run something");
+    expect(result.turns[0].tool_result!.ok).toBe(false);
+    expect(result.turns[0].tool_result!.error).toContain("plan mode");
+  });
+
+  it("execute mode allows all tools", async () => {
+    const llm = new ScriptedLLM([
+      { type: "tool_call", tool_name: "echo", arguments: { text: "hi" } },
+      { type: "final_response", content: "done" },
+    ]);
+    const agent = new HarnessAgent(llm, {
+      log_dir: tmpDir,
+      trust_level: "yolo",
+      mode: "execute",
+    });
+
+    const result = await agent.run("test");
+    expect(result.turns[0].tool_result!.ok).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // No approve callback blocks sensitive tools
 // ---------------------------------------------------------------------------
 
