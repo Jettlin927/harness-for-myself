@@ -86,6 +86,13 @@ export interface ToolSchema {
   input_schema: Record<string, unknown>;
 }
 
+/** Fine-grained permission rule for tool execution. */
+export interface PermissionRule {
+  tool: string;          // tool name or "*" for all
+  pattern?: string;      // prefix match on command (bash) or path (file tools)
+  decision: "allow" | "deny" | "ask";
+}
+
 // --- Helper Functions ---
 
 /** Create a successful ToolExecutionResult. */

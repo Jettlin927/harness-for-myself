@@ -192,6 +192,7 @@ export class SubAgentSpawner {
       allow_bash: parent.allow_bash,
       max_tokens_budget: parent.max_tokens_budget,
       trust_level: effectiveTrust,
+      permission_rules: parent.permission_rules,
       agent_depth: parent.agent_depth + 1,
     };
   }

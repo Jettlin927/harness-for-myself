@@ -34,6 +34,7 @@ function makeConfig(overrides: Partial<RunConfig>): RunConfig {
     allow_bash: true,
     max_tokens_budget: null,
     trust_level: "ask",
+    permission_rules: [],
     agent_depth: 0,
     ...overrides,
   };

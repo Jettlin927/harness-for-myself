@@ -6,6 +6,7 @@
 
 import type {
   LLMAction,
+  PermissionRule,
   RunResult,
   ToolExecutionResult,
   TrustLevel,
@@ -48,6 +49,7 @@ export interface RunConfig {
   allow_bash: boolean;
   max_tokens_budget: number | null;
   trust_level: TrustLevel;
+  permission_rules: PermissionRule[];
   agent_depth: number;
 }
 
@@ -67,6 +69,7 @@ const DEFAULT_CONFIG: RunConfig = {
   allow_bash: true,
   max_tokens_budget: null,
   trust_level: "ask",
+  permission_rules: [],
   agent_depth: 0,
 };
 
@@ -514,12 +517,51 @@ export class HarnessAgent {
     });
   }
 
-  _needsApproval(toolName: string): boolean {
+  /** Check permission for a tool call. Returns "allow", "deny", or "ask". */
+  _checkPermission(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): "allow" | "deny" | "ask" {
+    // 1. Evaluate permission_rules in order — first match wins
+    for (const rule of this.config.permission_rules) {
+      if (rule.tool !== "*" && rule.tool !== toolName) continue;
+      if (rule.pattern) {
+        const target = HarnessAgent._extractTarget(toolName, args);
+        if (!target.startsWith(rule.pattern)) continue;
+      }
+      return rule.decision;
+    }
+    // 2. Fallback to trust_level
+    return this._trustLevelFallback(toolName);
+  }
+
+  private _trustLevelFallback(toolName: string): "allow" | "deny" | "ask" {
     const trust = this.config.trust_level;
-    if (trust === "yolo") return false;
-    if (trust === "auto-edit") return toolName === "bash";
-    // trust === "ask": all sensitive tools need approval
-    return HarnessAgent._APPROVAL_REQUIRED_TOOLS.has(toolName);
+    if (trust === "yolo") return "allow";
+    if (trust === "auto-edit") return toolName === "bash" ? "ask" : "allow";
+    // ask mode
+    return HarnessAgent._APPROVAL_REQUIRED_TOOLS.has(toolName)
+      ? "ask"
+      : "allow";
+  }
+
+  private static _extractTarget(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): string {
+    if (toolName === "bash") return (args.command as string) ?? "";
+    if (
+      ["edit_file", "write_file", "read_file", "write_text_file"].includes(
+        toolName,
+      )
+    )
+      return (args.path as string) ?? "";
+    return "";
+  }
+
+  /** @deprecated Use _checkPermission instead. Kept for backward compatibility. */
+  _needsApproval(toolName: string): boolean {
+    return this._checkPermission(toolName, {}) === "ask";
   }
 
   private _executeToolCall(
@@ -532,8 +574,12 @@ export class HarnessAgent {
       args: Record<string, unknown>,
     ) => boolean,
   ): ToolExecutionResult {
-    // Approval check
-    if (this._needsApproval(toolName)) {
+    // Permission check
+    const decision = this._checkPermission(toolName, args);
+    if (decision === "deny") {
+      return toolError(`Tool '${toolName}' denied by permission rule`);
+    }
+    if (decision === "ask") {
       if (!onApprove) {
         return toolError(
           `Tool '${toolName}' requires approval but no approval ` +

@@ -177,6 +177,93 @@ describe("TestTrustEndToEnd", () => {
 // No approve callback blocks sensitive tools
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Fine-grained permission rules tests
+// ---------------------------------------------------------------------------
+
+describe("PermissionRules", () => {
+  function makeAgentWithRules(
+    trust: string,
+    rules: Array<{ tool: string; pattern?: string; decision: string }>,
+  ): HarnessAgent {
+    return new HarnessAgent(new ScriptedLLM([]), {
+      trust_level: trust as "ask" | "auto-edit" | "yolo",
+      permission_rules: rules as any,
+    });
+  }
+
+  it("rule allows bash with npm prefix", () => {
+    const agent = makeAgentWithRules("ask", [
+      { tool: "bash", pattern: "npm ", decision: "allow" },
+    ]);
+    expect(agent._checkPermission("bash", { command: "npm test" })).toBe("allow");
+    expect(agent._checkPermission("bash", { command: "npm run build" })).toBe("allow");
+  });
+
+  it("rule denies bash with rm prefix", () => {
+    const agent = makeAgentWithRules("ask", [
+      { tool: "bash", pattern: "rm ", decision: "deny" },
+    ]);
+    expect(agent._checkPermission("bash", { command: "rm -rf /" })).toBe("deny");
+  });
+
+  it("wildcard tool matches all tools", () => {
+    const agent = makeAgentWithRules("ask", [
+      { tool: "*", decision: "allow" },
+    ]);
+    expect(agent._checkPermission("bash", { command: "anything" })).toBe("allow");
+    expect(agent._checkPermission("edit_file", { path: "/tmp/x" })).toBe("allow");
+  });
+
+  it("first matching rule wins", () => {
+    const agent = makeAgentWithRules("ask", [
+      { tool: "bash", pattern: "npm test", decision: "allow" },
+      { tool: "bash", pattern: "npm", decision: "deny" },
+      { tool: "bash", decision: "ask" },
+    ]);
+    expect(agent._checkPermission("bash", { command: "npm test" })).toBe("allow");
+    expect(agent._checkPermission("bash", { command: "npm install" })).toBe("deny");
+    expect(agent._checkPermission("bash", { command: "ls" })).toBe("ask");
+  });
+
+  it("no matching rule falls back to trust_level", () => {
+    const agent = makeAgentWithRules("yolo", [
+      { tool: "bash", pattern: "rm", decision: "deny" },
+    ]);
+    // "echo" doesn't match rule → fallback to yolo → allow
+    expect(agent._checkPermission("bash", { command: "echo hi" })).toBe("allow");
+    // "rm" matches rule → deny
+    expect(agent._checkPermission("bash", { command: "rm -rf" })).toBe("deny");
+  });
+
+  it("pattern matches file path for edit_file", () => {
+    const agent = makeAgentWithRules("ask", [
+      { tool: "edit_file", pattern: "/tmp/", decision: "allow" },
+      { tool: "edit_file", decision: "ask" },
+    ]);
+    expect(agent._checkPermission("edit_file", { path: "/tmp/foo.ts" })).toBe("allow");
+    expect(agent._checkPermission("edit_file", { path: "/etc/passwd" })).toBe("ask");
+  });
+
+  it("empty rules array uses trust_level fallback", () => {
+    const agent = makeAgentWithRules("ask", []);
+    expect(agent._checkPermission("bash", { command: "echo" })).toBe("ask");
+    expect(agent._checkPermission("read_file", { path: "/tmp/x" })).toBe("allow");
+  });
+
+  it("_needsApproval backward compat delegates to _checkPermission", () => {
+    const agent = makeAgentWithRules("ask", [
+      { tool: "bash", decision: "allow" },
+    ]);
+    // bash would normally need approval in ask mode, but rule says allow
+    expect(agent._needsApproval("bash")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// No approve callback blocks sensitive tools
+// ---------------------------------------------------------------------------
+
 describe("TestNoApproveCallbackBlocks", () => {
   let tmpDir: string;
 
