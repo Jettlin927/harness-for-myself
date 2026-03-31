@@ -35,6 +35,7 @@ function makeConfig(overrides: Partial<RunConfig>): RunConfig {
     max_tokens_budget: null,
     trust_level: "ask",
     permission_rules: [],
+    hooks: [],
     mode: "execute",
     agent_depth: 0,
     ...overrides,

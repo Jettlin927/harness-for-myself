@@ -8,6 +8,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { execSync } from "node:child_process";
+import type { HookDefinition } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // TODO: merge 时替换为 import from "./definitions.js"
@@ -122,6 +123,7 @@ export interface ProjectContext {
   project_memory: string | null;
   available_agents: AgentSummary[];
   available_skills: SkillSummary[];
+  hooks: HookDefinition[];
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +149,7 @@ export function loadProjectContext(root: string): ProjectContext {
     project_memory: loadProjectMemory(root),
     available_agents: agents.map((a) => ({ name: a.name, description: a.description })),
     available_skills: skills.map((s) => ({ name: s.name, description: s.description })),
+    hooks: loadHooksConfig(hauDir),
   };
 }
 
@@ -359,11 +362,26 @@ export function makefileHasTarget(text: string, target: string): boolean {
  * Load project memory string (stub — returns null until project_memory.ts is implemented).
  */
 function loadProjectMemory(_root: string): string | null {
-  // TODO: merge 时替换为实际 ProjectMemory 加载
   const memoryDir = path.join(_root, ".hau", "memory");
   if (fs.existsSync(memoryDir) && fs.statSync(memoryDir).isDirectory()) {
-    // Stub: return null for now, real implementation in project_memory.ts
     return null;
   }
   return null;
+}
+
+/**
+ * Load hook definitions from .hau/hooks.json.
+ * Returns empty array if file does not exist or is invalid.
+ */
+function loadHooksConfig(hauDir: string): HookDefinition[] {
+  const hooksPath = path.join(hauDir, "hooks.json");
+  if (!fs.existsSync(hooksPath)) return [];
+  try {
+    const content = fs.readFileSync(hooksPath, "utf-8");
+    const parsed = JSON.parse(content);
+    if (!Array.isArray(parsed)) return [];
+    return parsed as HookDefinition[];
+  } catch {
+    return [];
+  }
 }

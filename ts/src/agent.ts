@@ -6,6 +6,7 @@
 
 import type {
   AgentMode,
+  HookDefinition,
   LLMAction,
   PermissionRule,
   RunResult,
@@ -23,6 +24,7 @@ import { SnapshotStore } from "./snapshot.js";
 import { StopController, type StopState } from "./stop-controller.js";
 import { TrajectoryLogger } from "./logger.js";
 import type { BaseLLM } from "./llm.js";
+import { HookManager } from "./hooks.js";
 import { SubAgentSpawner } from "./subagent.js";
 
 /** Cast WorkingMemory to Record<string, unknown> for use with LLM/TurnRecord. */
@@ -51,6 +53,7 @@ export interface RunConfig {
   max_tokens_budget: number | null;
   trust_level: TrustLevel;
   permission_rules: PermissionRule[];
+  hooks: HookDefinition[];
   mode: AgentMode;
   agent_depth: number;
 }
@@ -72,6 +75,7 @@ const DEFAULT_CONFIG: RunConfig = {
   max_tokens_budget: null,
   trust_level: "ask",
   permission_rules: [],
+  hooks: [],
   mode: "execute",
   agent_depth: 0,
 };
@@ -107,6 +111,7 @@ export class HarnessAgent {
   readonly errorPolicy: ErrorPolicy;
   readonly snapshotStore: SnapshotStore;
   readonly stopController: StopController;
+  readonly hookManager: HookManager;
 
   private static readonly _PLAN_MODE_TOOLS = new Set([
     "read_file",
@@ -187,6 +192,7 @@ export class HarnessAgent {
       this.config.max_failures,
       this.config.goal_reached_token,
     );
+    this.hookManager = new HookManager(this.config.hooks);
   }
 
   async run(
@@ -631,6 +637,10 @@ export class HarnessAgent {
       );
     }
 
+    // PreToolUse hooks
+    const hookEnv = { HAU_TOOL_NAME: toolName, HAU_TOOL_ARGS: JSON.stringify(args) };
+    this.hookManager.runHooks("PreToolUse", toolName, hookEnv);
+
     // Retry loop
     let attempt = 0;
     let result: ToolExecutionResult;
@@ -639,6 +649,13 @@ export class HarnessAgent {
       result = this.tools.execute(toolName, args);
       result.attempts = attempt;
     } while (this.errorPolicy.shouldRetryTool(result, attempt));
+
+    // PostToolUse hooks
+    this.hookManager.runHooks("PostToolUse", toolName, {
+      ...hookEnv,
+      HAU_TOOL_OK: String(result.ok),
+      HAU_TOOL_OUTPUT: String(result.output ?? ""),
+    });
 
     // Cache dangerous fingerprint on success
     if (

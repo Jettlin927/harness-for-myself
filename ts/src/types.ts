@@ -19,6 +19,17 @@ export interface Task {
   updated_at: string;
 }
 
+// --- Hook Types ---
+
+export type HookEvent = "PreToolUse" | "PostToolUse" | "SessionStart" | "SessionEnd";
+
+export interface HookDefinition {
+  event: HookEvent;
+  matcher?: string;    // tool name pattern, e.g. "edit_file|write_file"
+  command: string;     // shell command to execute
+  timeout?: number;    // seconds, default 30
+}
+
 // --- Error Classes ---
 
 /** Raised when LLM output fails strict schema validation. */
