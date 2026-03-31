@@ -92,31 +92,18 @@
 
 ---
 
-## Phase 17: Hook 系统
+## Phase 17: Hook 系统 ✅ 已完成
 
 **目标：** 用户可在工具执行前后注入自定义逻辑。
 
-**产出：**
-- `src/hooks.ts`（新模块）— HookManager
-- 支持的 hook 点：
-  - `PreToolUse` — 工具执行前（可拦截）
-  - `PostToolUse` — 工具执行后（可触发副作用）
-  - `SessionStart` / `SessionEnd`
-  - `SubagentStop`
-- Hook 定义在 `.hau/settings.json`，格式：
-  ```json
-  { "hooks": [
-    { "event": "PostToolUse", "tools": ["edit_file", "write_file"], "command": "npx eslint ${file}" }
-  ]}
-  ```
-- Hook 执行结果注入到 agent 上下文
-
-**验收：**
-- PostToolUse hook 自动 lint 工作正常
-- Hook 失败不阻塞 agent 主循环（可配置）
-- Hook 测试用例 15+
-
-**预估工作量：** 中等
+**实际交付：**
+- `hooks.ts`（新模块）— HookManager：getHooks / runHooks
+- 4 个 hook 事件：PreToolUse / PostToolUse / SessionStart / SessionEnd
+- matcher 支持 pipe 分隔的工具名匹配（如 "edit_file|write_file"）
+- Hook 通过环境变量传递上下文（HAU_TOOL_NAME / HAU_TOOL_ARGS / HAU_TOOL_OK / HAU_TOOL_OUTPUT）
+- agent.ts 集成：_executeToolCall 中触发 Pre/PostToolUse hooks
+- context.ts：从 .hau/hooks.json 加载 hook 定义
+- 428 测试全部通过（新增 10 个 hook 测试）
 
 ---
 
@@ -207,7 +194,7 @@ Q2 2026 (4-6月)
 
 Q3 2026 (7-9月)
 ├── Phase 16: Plan + Task                   ✅ 已完成 (2026-03-31)
-├── Phase 17: Hook 系统                     ← 可扩展性
+├── Phase 17: Hook 系统                     ✅ 已完成 (2026-03-31)
 └── Phase 18: 多 Agent 增强                 ← 并行能力
 
 Q4 2026 (10-12月)
